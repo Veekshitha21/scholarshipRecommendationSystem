@@ -3,40 +3,46 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ScholarMatch</title>
+  <title>ScholarMatch - Dashboard</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <div class="bg-glow bg-glow-1"></div>
-  <div class="bg-glow bg-glow-2"></div>
-
-  <header class="header container">
-    <h1>ScholarMatch</h1>
-    <p>AI-powered scholarship discovery with live updates</p>
+  <!-- Dashboard Header -->
+  <header class="dashboard-header">
+    <div class="dashboard-header-content">
+      <a href="welcome.html" class="dashboard-logo">
+        <span style="font-size: 1.5rem;">🎓</span>
+        <strong>ScholarMatch</strong>
+      </a>
+      <nav class="dashboard-nav">
+        <a href="welcome.html">Home</a>
+        <a href="#about">About</a>
+      </nav>
+    </div>
   </header>
 
-  <main class="container grid">
-    <section class="panel matcher">
-      <h2>Smart Eligibility Matcher (ML-style)</h2>
-      <p class="muted">Enter your profile and get ranked scholarship recommendations instantly.</p>
-      <p id="statusBox" class="status info">Loading scholarship data...</p>
-
-      <form id="profileForm" class="form-grid">
-        <label>
-          Percentage
+  <!-- Main Container -->
+  <div class="main-container">
+    <!-- Left Sidebar - Filters -->
+    <aside class="filter-sidebar">
+      <h3>📊 Filter Results</h3>
+      
+      <form id="filterForm">
+        <div class="filter-group">
+          <label>Percentage</label>
           <input type="number" id="marks" min="0" max="100" step="0.1" value="78" required />
-        </label>
+        </div>
 
-        <label>
-          Family Income (₹ / year)
+        <div class="filter-group">
+          <label>Family Income (₹/year)</label>
           <input type="number" id="income" min="0" step="1000" value="300000" required />
-        </label>
+        </div>
 
-        <label>
-          Class / Study Stage
+        <div class="filter-group">
+          <label>Class / Study Stage</label>
           <select id="class_level">
             <option value="any">Any</option>
             <option value="8">Class 8</option>
@@ -48,10 +54,10 @@
             <option value="ug">UG</option>
             <option value="pg">PG</option>
           </select>
-        </label>
+        </div>
 
-        <label>
-          Category
+        <div class="filter-group">
+          <label>Category</label>
           <select id="category">
             <option>General</option>
             <option>OBC</option>
@@ -59,18 +65,18 @@
             <option>ST</option>
             <option>Minority</option>
           </select>
-        </label>
+        </div>
 
-        <label>
-          Gender
+        <div class="filter-group">
+          <label>Gender</label>
           <select id="gender">
             <option>Male</option>
             <option>Female</option>
           </select>
-        </label>
+        </div>
 
-        <label>
-          Course / Education Level
+        <div class="filter-group">
+          <label>Education Level</label>
           <select id="education_level">
             <option value="any">Any</option>
             <option value="school">1-10th</option>
@@ -79,55 +85,76 @@
             <option value="ug">Degree (UG)</option>
             <option value="pg">Masters (PG)</option>
           </select>
-        </label>
+        </div>
 
-        <label>
-          Disability
+        <div class="filter-group">
+          <label>Disability</label>
           <select id="disability">
             <option>No</option>
             <option>Yes</option>
           </select>
-        </label>
+        </div>
 
-        <label>
-          Minority
+        <div class="filter-group">
+          <label>Minority</label>
           <select id="minority">
             <option value="any">Any</option>
             <option value="yes">Yes</option>
             <option value="no">No</option>
           </select>
-        </label>
+        </div>
 
-        <label>
-          State (optional)
+        <div class="filter-group">
+          <label>State (optional)</label>
           <input type="text" id="state" placeholder="e.g., Karnataka" />
-        </label>
+        </div>
 
-        <button type="submit" class="btn-primary">Run Smart Match</button>
+        <button type="submit" class="filter-btn">Find Scholarships</button>
       </form>
-      <div id="matchList" class="match-list" aria-live="polite"></div>
-    </section>
 
-    <section class="panel sidebar">
-      <h2>Live Upcoming Scholarships</h2>
-      <div id="liveTicker" class="ticker" aria-live="polite"></div>
-    </section>
-
-    <section class="panel full">
-      <div class="section-title-row">
-        <h2>Recommended Scholarships</h2>
-        <span id="recommendationCount" class="badge">0 found</span>
+      <!-- Live Ticker Section -->
+      <div style="margin-top: 2rem; padding-top: 2rem; border-top: 1px solid var(--border);">
+        <h4 style="margin-bottom: 1rem; font-weight: 600;">📡 Live Updates</h4>
+        <div id="liveTicker" class="ticker" aria-live="polite"></div>
       </div>
-      <div id="recommendationCards" class="cards"></div>
-    </section>
+    </aside>
 
-    <section class="panel full">
-      <h2>Registered Scholarships</h2>
-      <p class="muted">Saved locally in your browser.</p>
-      <div id="registeredCards" class="cards"></div>
-    </section>
-  </main>
+    <!-- Content Area -->
+    <main class="content-area">
+      <!-- Status Message -->
+      <div id="statusBox" class="status info" style="display: none;">Loading scholarship data...</div>
 
+      <!-- Recommended Scholarships Section -->
+      <section>
+        <div class="content-header">
+          <h2>🎯 Recommended Scholarships</h2>
+          <span id="recommendationCount" class="result-count">0 matches found</span>
+        </div>
+        <div id="recommendationCards" class="cards"></div>
+        <div id="emptyState" class="empty-state" style="display: none;">
+          <div class="empty-state-icon">🔍</div>
+          <h3>No Scholarships Found</h3>
+          <p>Try adjusting your filters to see more opportunities</p>
+        </div>
+      </section>
+
+      <!-- Registered/Saved Scholarships Section -->
+      <section>
+        <div class="content-header">
+          <h2>⭐ Saved Scholarships</h2>
+          <span id="registeredCount" class="result-count">0 saved</span>
+        </div>
+        <div id="registeredCards" class="cards"></div>
+        <div id="emptyRegistered" class="empty-state" style="display: none;">
+          <div class="empty-state-icon">💾</div>
+          <h3>No Saved Scholarships Yet</h3>
+          <p>Click "Save" on any scholarship to store it here</p>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Scholarship Card Template -->
   <template id="scholarshipCardTemplate">
     <article class="card">
       <div class="card-top">
@@ -137,8 +164,8 @@
       <p class="meta"></p>
       <p class="amount"></p>
       <div class="actions">
-        <a class="btn-link apply-link" target="_blank" rel="noopener">Open Scholarship</a>
-        <button class="btn-secondary register-btn">Register</button>
+        <a class="btn-link apply-link" target="_blank" rel="noopener">Apply Now</a>
+        <button class="btn-secondary register-btn">Save</button>
       </div>
     </article>
   </template>

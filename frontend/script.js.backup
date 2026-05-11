@@ -8,16 +8,15 @@ const state = {
   tickerData: []
 };
 
-const filterForm = document.getElementById("filterForm");
+const profileForm = document.getElementById("profileForm");
 const recommendationCards = document.getElementById("recommendationCards");
 const registeredCards = document.getElementById("registeredCards");
 const recommendationCount = document.getElementById("recommendationCount");
-const registeredCount = document.getElementById("registeredCount");
 const liveTicker = document.getElementById("liveTicker");
 const cardTemplate = document.getElementById("scholarshipCardTemplate");
+const runMatchButton = profileForm?.querySelector("button[type='submit']");
 const statusBox = document.getElementById("statusBox");
-const emptyState = document.getElementById("emptyState");
-const emptyRegistered = document.getElementById("emptyRegistered");
+const matchList = document.getElementById("matchList");
 
 init();
 
@@ -32,9 +31,9 @@ async function init() {
   const loaded = await loadScholarships();
   if (loaded.length) {
     state.scholarships = loaded;
-    setStatus(`Loaded ${loaded.length} scholarships. Ready to find your matches!`, "ok");
+    setStatus(`CSV loaded successfully (${loaded.length} scholarships).`, "ok");
   } else {
-    setStatus("Using built-in scholarship database", "info");
+    setStatus("CSV not loaded. Using built-in dataset only.", "warn");
   }
 
   state.tickerData = state.scholarships.slice(0, 12).map((s, i) => ({
@@ -54,8 +53,7 @@ async function init() {
   profileForm.addEventListener("submit", (e) => {
     e.preventDefault();
     (async () => {
-      setStatus('Analyzing your profile...', 'info');
-      statusBox.style.display = 'block';
+      setStatus('Querying backend API...', 'info');
       const user = {
         marks: Number(document.getElementById("marks").value || 0),
         income: Number(document.getElementById("income").value || 0),
@@ -70,10 +68,16 @@ async function init() {
 
       const ok = await fetchFromApi(user);
       if (!ok) {
-        setStatus('Using local AI matching...', 'info');
+        setStatus('API not available; using local scoring.', 'warn');
         runSmartMatch();
       }
     })();
+  });
+
+  runMatchButton?.addEventListener("click", () => {
+    // extra safety: if browser blocks form submit for any reason,
+    // this still triggers a fresh calculation.
+    setTimeout(runSmartMatch, 0);
   });
 }
 
@@ -500,40 +504,42 @@ function displayEducation(level) {
 function renderRecommendations() {
   recommendationCards.innerHTML = "";
   const eligibleCount = state.recommendations.filter((x) => x.eligible).length;
-  
+  recommendationCount.textContent = `${state.recommendations.length} found`;
+
   if (!state.recommendations.length) {
-    emptyState.style.display = "block";
-    recommendationCount.textContent = "0 matches found";
+    recommendationCards.innerHTML = `<p class="muted">No scholarships matched this profile.</p>`;
     return;
   }
 
-  emptyState.style.display = "none";
-  recommendationCount.textContent = `${state.recommendations.length} matches found`;
+  if (!eligibleCount) {
+    recommendationCards.insertAdjacentHTML(
+      "beforeend",
+      `<p class="muted">No fully eligible scholarships found. Showing best near matches.</p>`
+    );
+  }
 
   state.recommendations.forEach((s) => {
     const card = makeCard(s, true);
     recommendationCards.appendChild(card);
   });
+  // also render compact ordered match summary
+  renderMatchList();
 }
 
 function renderRegistered() {
   registeredCards.innerHTML = "";
 
   if (!state.registered.length) {
-    emptyRegistered.style.display = "block";
-    registeredCount.textContent = "0 saved";
+    registeredCards.innerHTML = `<p class="muted">No registered scholarships yet.</p>`;
     return;
   }
-
-  emptyRegistered.style.display = "none";
-  registeredCount.textContent = `${state.registered.length} saved`;
 
   state.registered.forEach((s) => {
     const card = makeCard(s, false);
     const registerBtn = card.querySelector(".register-btn");
-    registerBtn.textContent = "✓ Saved";
+    registerBtn.textContent = "Registered";
     registerBtn.disabled = true;
-    registerBtn.classList.add("registered");
+    registerBtn.classList.add("disabled");
     registeredCards.appendChild(card);
   });
 }
@@ -542,28 +548,16 @@ function makeCard(scholarship, allowRegister) {
   const node = cardTemplate.content.cloneNode(true);
 
   node.querySelector(".title").textContent = scholarship.scholarship_name;
-  
-  const scoreChip = node.querySelector(".score-chip");
-  scoreChip.textContent = `${Math.round(scholarship.score)}% Match`;
-  
-  // Color code the score chip
-  if (scholarship.score >= 80) {
-    scoreChip.style.background = "linear-gradient(135deg, #FF8A5B, #FF6B35)";
-    scoreChip.style.color = "white";
-  } else if (scholarship.score >= 60) {
-    scoreChip.style.background = "linear-gradient(135deg, #00B4A6, #008B7F)";
-    scoreChip.style.color = "white";
-  } else {
-    scoreChip.style.background = "rgba(255, 138, 91, 0.2)";
-    scoreChip.style.color = "#FF6B35";
-  }
-  
-  node.querySelector(".meta").textContent = `${displayEducation(scholarship.education_level)} • ${scholarship.gender || "Any"}`;
+  node.querySelector(".score-chip").textContent = scholarship.eligible
+    ? `Score ${scholarship.score ?? "-"} • Eligible`
+    : `Score ${scholarship.score ?? "-"} • Near match`;
+  node.querySelector(".meta").textContent = `Income ≤ ₹${formatNumber(scholarship.max_income || 0)} | ${scholarship.gender || "Any"} | ${displayEducation(scholarship.education_level)}`;
   node.querySelector(".amount").textContent = scholarship.scholarship_amount
-    ? `₹${formatNumber(scholarship.scholarship_amount)}`
-    : "Amount not specified";
+    ? `Amount: ₹${formatNumber(scholarship.scholarship_amount)}`
+    : "Amount: Not specified";
 
   const link = node.querySelector(".apply-link");
+  // build a safe unique link and open via window.open to avoid reuse issues
   const safeLink = scholarship.link || `https://scholarships.gov.in/?search=${encodeURIComponent(scholarship.scholarship_name || scholarship.name || '')}`;
   link.href = safeLink;
   link.addEventListener('click', (ev) => {
@@ -580,12 +574,10 @@ function makeCard(scholarship, allowRegister) {
       state.registered.push({ ...scholarship });
       saveRegistered(state.registered);
       renderRegistered();
-      renderRecommendations(); // Re-render to show updated status
     }
 
-    btn.textContent = "✓ Saved";
+    btn.textContent = "Registered";
     btn.disabled = true;
-    btn.classList.add("registered");
   });
 
   if (!allowRegister) {
