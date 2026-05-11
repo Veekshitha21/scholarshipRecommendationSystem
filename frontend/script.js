@@ -1,4 +1,4 @@
-const DATA_FILE = "../ml/structured_real_scholarships.csv";
+const DATA_FILE = "/ml/structured_real_scholarships.csv";
 const REGISTERED_KEY = "scholarmatch_registered";
 
 const state = {
@@ -22,7 +22,6 @@ const emptyRegistered = document.getElementById("emptyRegistered");
 init();
 
 async function init() {
-  // Always keep an in-memory dataset so the button gives output immediately.
   state.scholarships = getFallbackScholarships();
   setStatus("Using built-in dataset. Trying to load CSV...", "info");
 
@@ -49,8 +48,6 @@ async function init() {
   // start auto-scroll for the ticker
   startTickerAutoScroll();
 
-  runSmartMatch();
-
   profileForm.addEventListener("submit", (e) => {
     e.preventDefault();
     (async () => {
@@ -62,9 +59,7 @@ async function init() {
         class_level: (document.getElementById("class_level")?.value || "any").toLowerCase(),
         category: (document.getElementById("category").value || "").toLowerCase(),
         gender: (document.getElementById("gender").value || "").toLowerCase(),
-        education_level: (document.getElementById("education_level").value || "Any").toLowerCase(),
         disability: (document.getElementById("disability").value || "").toLowerCase(),
-        minority: (document.getElementById("minority")?.value || "any").toLowerCase(),
         state: (document.getElementById("state")?.value || "").trim().toLowerCase()
       };
 
@@ -205,9 +200,7 @@ function runSmartMatch() {
     class_level: (document.getElementById("class_level")?.value || "any").toLowerCase(),
     category: (document.getElementById("category").value || "").toLowerCase(),
     gender: (document.getElementById("gender").value || "").toLowerCase(),
-    education_level: (document.getElementById("education_level").value || "Any").toLowerCase(),
     disability: (document.getElementById("disability").value || "").toLowerCase(),
-    minority: (document.getElementById("minority")?.value || "any").toLowerCase(),
     state: (document.getElementById("state")?.value || "").trim().toLowerCase()
   };
 
@@ -463,8 +456,6 @@ function classLevelToEducation(classLevel) {
 }
 
 function resolveUserEducation(user) {
-  const edu = normalizeEducationLevel(user.education_level || "any");
-  if (edu !== "any") return edu;
   return classLevelToEducation(user.class_level || "any");
 }
 
