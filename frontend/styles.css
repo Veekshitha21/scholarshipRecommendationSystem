@@ -79,8 +79,8 @@ body {
 }
 
 .panel.matcher {
-  max-height: 520px;
-  overflow: hidden;
+  max-height: none;
+  overflow: visible;
 }
 
 .panel.sidebar {

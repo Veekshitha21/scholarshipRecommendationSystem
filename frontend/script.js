@@ -1,4 +1,4 @@
-const DATA_FILE = "./structured_real_scholarships.csv";
+const DATA_FILE = "../ml/structured_real_scholarships.csv";
 const REGISTERED_KEY = "scholarmatch_registered";
 
 const state = {
@@ -57,10 +57,13 @@ async function init() {
       const user = {
         marks: Number(document.getElementById("marks").value || 0),
         income: Number(document.getElementById("income").value || 0),
+        class_level: (document.getElementById("class_level")?.value || "any").toLowerCase(),
         category: (document.getElementById("category").value || "").toLowerCase(),
         gender: (document.getElementById("gender").value || "").toLowerCase(),
         education_level: (document.getElementById("education_level").value || "Any").toLowerCase(),
-        disability: (document.getElementById("disability").value || "").toLowerCase()
+        disability: (document.getElementById("disability").value || "").toLowerCase(),
+        minority: (document.getElementById("minority")?.value || "any").toLowerCase(),
+        state: (document.getElementById("state")?.value || "").trim().toLowerCase()
       };
 
       const ok = await fetchFromApi(user);
@@ -91,7 +94,7 @@ async function loadScholarships() {
       const maxIncome = Number(r.max_income || 0);
       const amount = Number(r.scholarship_amount || 0);
       const gender = (r.gender || "Any").trim();
-      const level = (r.education_level || "Any").trim();
+      const level = normalizeEducationLevel((r.education_level || "Any").trim());
 
       return {
         scholarship_name: name,
@@ -189,13 +192,13 @@ function splitCsvLine(line) {
 }
 
 function inferMinMarks(level) {
-  const lv = (level || "").toLowerCase();
+  const lv = normalizeEducationLevel(level || "");
   // Map common labels to sensible minimum marks
-  if (lv.includes("master") || lv.includes("pg")) return 75;
-  if (lv.includes("degree") || lv === 'ug' || lv === 'degree') return 70;
-  if (lv === 'pu' || lv.includes('pu')) return 60;
-  if (lv.includes('1') || lv.includes('10') || lv.includes('class')) return 50;
-  if (lv.includes("diploma")) return 60;
+  if (lv === "pg") return 75;
+  if (lv === 'ug') return 70;
+  if (lv === 'pu') return 60;
+  if (lv === 'school') return 50;
+  if (lv === 'diploma') return 60;
   return 65;
 }
 
@@ -203,10 +206,13 @@ function runSmartMatch() {
   const user = {
     marks: Number(document.getElementById("marks").value || 0),
     income: Number(document.getElementById("income").value || 0),
+    class_level: (document.getElementById("class_level")?.value || "any").toLowerCase(),
     category: (document.getElementById("category").value || "").toLowerCase(),
     gender: (document.getElementById("gender").value || "").toLowerCase(),
     education_level: (document.getElementById("education_level").value || "Any").toLowerCase(),
-    disability: (document.getElementById("disability").value || "").toLowerCase()
+    disability: (document.getElementById("disability").value || "").toLowerCase(),
+    minority: (document.getElementById("minority")?.value || "any").toLowerCase(),
+    state: (document.getElementById("state")?.value || "").trim().toLowerCase()
   };
 
   if (Number.isNaN(user.marks) || Number.isNaN(user.income)) {
@@ -222,11 +228,12 @@ function runSmartMatch() {
 
   const rankedAll = state.scholarships
     .map((row) => scoreScholarship(user, row))
-    .sort((a, b) => b.score - a.score);
-  const eligibleOnly = rankedAll.filter((item) => item.eligible);
+    .sort((a, b) => {
+      if (a.eligible !== b.eligible) return (b.eligible ? 1 : 0) - (a.eligible ? 1 : 0);
+      return b.score - a.score;
+    });
 
-  // If no fully eligible scholarship exists, show top close matches instead.
-  let candidates = eligibleOnly.length ? eligibleOnly : rankedAll;
+  let candidates = rankedAll;
 
   // Remove duplicates (keep first occurrence) and limit to top 10
   const seen = new Set();
@@ -268,8 +275,14 @@ async function fetchFromApi(user) {
       link: r.link,
       max_income: r.max_income,
       scholarship_amount: r.scholarship_amount,
-      education_level: r.education_level
-    })).slice(0, 12);
+      education_level: normalizeEducationLevel(r.education_level),
+      gender: r.gender || "Any",
+      category: r.category || "any",
+      disability: r.disability || "no"
+    })).sort((a, b) => {
+      if (a.eligible !== b.eligible) return (b.eligible ? 1 : 0) - (a.eligible ? 1 : 0);
+      return b.score - a.score;
+    }).slice(0, 12);
 
     renderRecommendations();
     setStatus('Loaded recommendations from API.', 'ok');
@@ -284,6 +297,7 @@ function scoreScholarship(user, row) {
   let score = 0;
   let eligible = true;
   const breakdown = [];
+  const effectiveEducation = resolveUserEducation(user);
 
   // ML-style weighted scoring (mirrors your Python logic)
   if (user.marks >= row.min_marks) score += 30;
@@ -316,13 +330,15 @@ function scoreScholarship(user, row) {
   }
 
   // Education / Course match
-  const rowLevel = String(row.education_level || "any").toLowerCase();
-  if (rowLevel === "any" || rowLevel === user.education_level || user.education_level === "any") {
+  const rowLevel = normalizeEducationLevel(row.education_level || "any");
+  const userLevel = normalizeEducationLevel(effectiveEducation || "any");
+  const eduMatch = educationMatch(rowLevel, userLevel);
+  if (eduMatch === "full") {
     score += 10;
     breakdown.push(`Course match: +10`);
   } else {
     // allow partial credit when nearby (diploma <-> ug)
-    if ((rowLevel === 'ug' && user.education_level === 'diploma') || (rowLevel === 'diploma' && user.education_level === 'ug')) {
+    if (eduMatch === "partial") {
       score += 5;
       breakdown.push(`Course near-match: +5`);
     } else {
@@ -395,10 +411,10 @@ function renderMatchList() {
 
     const sub = document.createElement('div');
     sub.className = 'match-sub';
-    const edu = s.education_level || 'Any';
+    const edu = displayEducation(s.education_level || 'Any');
     const gender = s.gender || 'Any';
     const incomeText = `Income ≤ ₹${formatNumber(s.max_income || 0)}`;
-    sub.textContent = `${capitalize(edu)} • ${capitalize(gender)} • ${incomeText}`;
+    sub.textContent = `${edu} • ${capitalize(gender)} • ${incomeText}`;
 
     left.appendChild(title);
     left.appendChild(sub);
@@ -438,6 +454,51 @@ function renderMatchList() {
 function capitalize(s) {
   if (!s) return '';
   return String(s).charAt(0).toUpperCase() + String(s).slice(1);
+}
+
+function classLevelToEducation(classLevel) {
+  const c = String(classLevel || "").trim().toLowerCase();
+  if (["8", "9", "10", "school"].includes(c)) return "school";
+  if (["11", "12", "pu", "puc"].includes(c)) return "pu";
+  if (["diploma"].includes(c)) return "diploma";
+  if (["ug", "degree", "undergraduate"].includes(c)) return "ug";
+  if (["pg", "masters", "master", "postgraduate"].includes(c)) return "pg";
+  return "any";
+}
+
+function resolveUserEducation(user) {
+  const edu = normalizeEducationLevel(user.education_level || "any");
+  if (edu !== "any") return edu;
+  return classLevelToEducation(user.class_level || "any");
+}
+
+function normalizeEducationLevel(level) {
+  const v = String(level || "").trim().toLowerCase();
+  if (!v || v === "any" || v === "all") return "any";
+  if (["degree", "undergraduate", "bachelor", "bachelors", "ug"].includes(v)) return "ug";
+  if (["masters", "master", "postgraduate", "pg"].includes(v)) return "pg";
+  if (["diploma", "polytechnic"].includes(v)) return "diploma";
+  if (["1-10th", "10th", "school", "secondary", "high school"].includes(v)) return "school";
+  if (["pu", "puc", "pre-university", "pre university", "11th", "12th"].includes(v)) return "pu";
+  return v;
+}
+
+function educationMatch(rowLevel, userLevel) {
+  if (rowLevel === "any" || userLevel === "any") return "full";
+  if (rowLevel === userLevel) return "full";
+  const nearPairs = new Set(["ug|diploma", "diploma|ug", "pu|school", "school|pu"]);
+  if (nearPairs.has(`${rowLevel}|${userLevel}`)) return "partial";
+  return "none";
+}
+
+function displayEducation(level) {
+  const v = normalizeEducationLevel(level);
+  if (v === "ug") return "UG";
+  if (v === "pg") return "PG";
+  if (v === "pu") return "PU";
+  if (v === "school") return "1-10th";
+  if (v === "diploma") return "Diploma";
+  return "Any";
 }
 
 function renderRecommendations() {
@@ -490,7 +551,7 @@ function makeCard(scholarship, allowRegister) {
   node.querySelector(".score-chip").textContent = scholarship.eligible
     ? `Score ${scholarship.score ?? "-"} • Eligible`
     : `Score ${scholarship.score ?? "-"} • Near match`;
-  node.querySelector(".meta").textContent = `Income ≤ ₹${formatNumber(scholarship.max_income || 0)} | ${scholarship.gender} | ${scholarship.education_level}`;
+  node.querySelector(".meta").textContent = `Income ≤ ₹${formatNumber(scholarship.max_income || 0)} | ${scholarship.gender || "Any"} | ${displayEducation(scholarship.education_level)}`;
   node.querySelector(".amount").textContent = scholarship.scholarship_amount
     ? `Amount: ₹${formatNumber(scholarship.scholarship_amount)}`
     : "Amount: Not specified";

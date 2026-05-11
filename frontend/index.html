@@ -36,6 +36,21 @@
         </label>
 
         <label>
+          Class / Study Stage
+          <select id="class_level">
+            <option value="any">Any</option>
+            <option value="8">Class 8</option>
+            <option value="9">Class 9</option>
+            <option value="10">Class 10</option>
+            <option value="11">Class 11</option>
+            <option value="12">Class 12</option>
+            <option value="diploma">Diploma</option>
+            <option value="ug">UG</option>
+            <option value="pg">PG</option>
+          </select>
+        </label>
+
+        <label>
           Category
           <select id="category">
             <option>General</option>
@@ -57,11 +72,12 @@
         <label>
           Course / Education Level
           <select id="education_level">
-            <option>Any</option>
-            <option>1-10th</option>
-            <option>PU</option>
-            <option>Degree</option>
-            <option>Masters</option>
+            <option value="any">Any</option>
+            <option value="school">1-10th</option>
+            <option value="pu">PU</option>
+            <option value="diploma">Diploma</option>
+            <option value="ug">Degree (UG)</option>
+            <option value="pg">Masters (PG)</option>
           </select>
         </label>
 
@@ -71,6 +87,20 @@
             <option>No</option>
             <option>Yes</option>
           </select>
+        </label>
+
+        <label>
+          Minority
+          <select id="minority">
+            <option value="any">Any</option>
+            <option value="yes">Yes</option>
+            <option value="no">No</option>
+          </select>
+        </label>
+
+        <label>
+          State (optional)
+          <input type="text" id="state" placeholder="e.g., Karnataka" />
         </label>
 
         <button type="submit" class="btn-primary">Run Smart Match</button>
