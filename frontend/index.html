@@ -42,21 +42,6 @@
         </div>
 
         <div class="filter-group">
-          <label>Class / Study Stage</label>
-          <select id="class_level">
-            <option value="any">Any</option>
-            <option value="8">Class 8</option>
-            <option value="9">Class 9</option>
-            <option value="10">Class 10</option>
-            <option value="11">Class 11</option>
-            <option value="12">Class 12</option>
-            <option value="diploma">Diploma</option>
-            <option value="ug">UG</option>
-            <option value="pg">PG</option>
-          </select>
-        </div>
-
-        <div class="filter-group">
           <label>Category</label>
           <select id="category">
             <option value="any">Any</option>
@@ -93,8 +78,8 @@
           <label>Disability</label>
           <select id="disability">
             <option value="any">Any</option>
-            <option>No</option>
-            <option>Yes</option>
+            <option value="no">No</option>
+            <option value="yes">Yes</option>
           </select>
         </div>
 
@@ -148,7 +133,7 @@
     <!-- Right sidebar: scrolling updates from dataset / model -->
     <aside class="ticker-sidebar" aria-label="Scholarship feed">
       <h3 class="ticker-sidebar-title">📡 Live feed</h3>
-      <p class="ticker-sidebar-hint">Names from your dataset; after search, top matches appear here.</p>
+      <p class="ticker-sidebar-hint">Real-time matches: Scholarships matching your criteria appear here as you search.</p>
       <div id="liveTicker" class="ticker ticker--sidebar" aria-live="polite"></div>
     </aside>
   </div>
@@ -162,6 +147,23 @@
       </div>
       <p class="meta"></p>
       <p class="amount"></p>
+      
+      <!-- Applicability & Accuracy Metrics -->
+      <div class="card-metrics">
+        <div class="metric-item">
+          <span class="metric-label">Applicable:</span>
+          <span class="metric-value applicable-percentage"></span>
+        </div>
+        <div class="metric-item">
+          <span class="metric-label">Accuracy:</span>
+          <span class="metric-value accuracy-value"></span>
+        </div>
+        <div class="metric-item">
+          <span class="metric-label">Error Rate:</span>
+          <span class="metric-value error-rate-value"></span>
+        </div>
+      </div>
+      
       <div class="actions">
         <a class="btn-link apply-link" target="_blank" rel="noopener">Apply Now</a>
         <button class="btn-secondary register-btn">Save</button>

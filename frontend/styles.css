@@ -123,6 +123,20 @@ body.welcome-page {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 1rem;
+}
+
+.nav-left {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.nav-actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
 }
 
 .logo {
@@ -164,6 +178,21 @@ body.welcome-page {
   font-weight: 600;
   font-size: 0.9rem;
   transition: all var(--transition-base);
+}
+
+.nav-link--register {
+  background: linear-gradient(135deg, #00B4A6, #008B7F);
+}
+
+.nav-link--login {
+  background: rgba(255, 255, 255, 0.95);
+  color: var(--primary-dark);
+  border: 1px solid rgba(255, 106, 53, 0.18);
+}
+
+.nav-link--login:hover {
+  background: #fff;
+  color: var(--primary-dark);
 }
 
 .nav-link:hover {
@@ -901,6 +930,35 @@ body.welcome-page {
   font-weight: 800;
   color: var(--accent);
   margin: 0 0 1rem;
+}
+
+/* Card Metrics (Applicability, Accuracy, Error Rate) */
+.card-metrics {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1rem;
+  background: rgba(0, 180, 166, 0.05);
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  border-left: 3px solid var(--accent);
+}
+
+.metric-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.85rem;
+}
+
+.metric-label {
+  color: var(--text-light);
+  font-weight: 500;
+}
+
+.metric-value {
+  font-weight: 700;
+  font-size: 0.9rem;
 }
 
 .actions {

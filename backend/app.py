@@ -70,11 +70,14 @@ def education_match(row_level, user_level):
     if row_norm == user_norm:
         return "full"
 
+    # Pairs that should match with partial credit
     near_pairs = {
         ("ug", "diploma"),
         ("diploma", "ug"),
         ("pu", "school"),
         ("school", "pu"),
+        ("ug", "school"),  # High school students can see UG scholarships
+        ("ug", "pu"),      # PU students can see UG scholarships
     }
     if (row_norm, user_norm) in near_pairs:
         return "partial"
@@ -113,8 +116,28 @@ def income_bucket(amount):
 
 def normalize_disability(value):
     v = str(value or "").strip().lower()
-    if v in {"yes", "y", "1", "true", "pwd", "disabled"}:
+    if not v:
+        return "no"
+
+    # Common affirmative indicators
+    yes_indicators = {"yes", "y", "1", "true", "pwd", "disabled", "for pwd", "only", "only for pwd", "persons with disability", "person with disability", "person with disabilities"}
+    no_indicators = {"no", "n", "false", "0"}
+
+    # Normalize common phrases
+    vs = re.sub(r"[^a-z0-9 ]+", " ", v)
+    vs = re.sub(r"\s+", " ", vs).strip()
+
+    # direct matches
+    if vs in yes_indicators:
         return "yes"
+    if vs in no_indicators or vs == "any":
+        return "no"
+
+    # contains checks for more flexible detection
+    if any(tok in vs for tok in ("yes", "pwd", "disabled", "disability", "only")):
+        return "yes"
+
+    # default to 'no' (conservative: treat missing/unknown as non-disabled requirement)
     return "no"
 
 
@@ -347,12 +370,19 @@ def recommend():
 
         # disability (5 points)
         sch_dis = normalize_disability(r.get("disability") or "no")
-        # Strict rule: non-disabled students should not get disability-only schemes.
+        # IMPORTANT: Non-disabled students should NOT get disability-only scholarships.
+        # Skip any scholarship that requires disability if user selected "no"
         if disability == "no" and sch_dis == "yes":
+            try:
+                app.logger.debug(f"Skipping {name} because scholarship requires disability but user has none")
+            except Exception:
+                pass
             continue
+        # Give full score if scholarship has no disability requirement OR if disability matches
         if sch_dis == "no" or sch_dis == disability:
             score += 5
         else:
+            # User is disabled but scholarship doesn't support disabilities
             eligible = False
 
         # state (15 points)
