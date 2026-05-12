@@ -243,6 +243,20 @@ def load_rank_model():
 RANK_MODEL = load_rank_model()
 
 
+@app.route("/api/dataset-preview", methods=["GET"])
+def dataset_preview():
+    """Return real scholarship names from the ML dataset for UI ticker (no hardcoded list)."""
+    try:
+        df = load_scholarships()
+        if df.empty:
+            return jsonify({"scholarships": []})
+        limit = min(int(request.args.get("limit", 36)), 200)
+        names = df["scholarship_name"].astype(str).head(limit).tolist()
+        return jsonify({"scholarships": names})
+    except Exception as exc:
+        return jsonify({"scholarships": [], "error": str(exc)}), 200
+
+
 @app.route("/api/recommend", methods=["POST"])
 def recommend():
     body = request.get_json() or {}
@@ -253,7 +267,12 @@ def recommend():
     gender = str(body.get("gender") or "any").strip().lower() or "any"
     disability = normalize_disability(body.get("disability") or "no")
     state = str(body.get("state") or "any").strip().lower() or "any"
-    education = class_to_education(class_level)
+    edu_from_form = normalize_education(body.get("education_level") or "")
+    education = (
+        edu_from_form
+        if edu_from_form and edu_from_form != "any"
+        else class_to_education(class_level)
+    )
 
     df = load_scholarships()
     user_profile = {
@@ -392,14 +411,26 @@ def recommend():
     return jsonify({"results": rows[:50]})
 
 
+ALLOWED_FRONTEND_FILES = frozenset(
+    {
+        "index.html",
+        "script.js",
+        "styles.css",
+        "welcome.html",
+        "welcome.js",
+    }
+)
+
+
 @app.route("/")
 def home():
+    """Scholarship dashboard (main app). Landing page: /welcome.html"""
     return send_from_directory(FRONTEND_DIR, "index.html")
 
 
 @app.route("/<path:filename>")
 def frontend_files(filename):
-    if filename in {"index.html", "script.js", "styles.css"}:
+    if filename in ALLOWED_FRONTEND_FILES:
         return send_from_directory(FRONTEND_DIR, filename)
     return jsonify({"error": "Not found"}), 404
 

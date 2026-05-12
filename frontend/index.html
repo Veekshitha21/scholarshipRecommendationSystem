@@ -13,13 +13,13 @@
   <!-- Dashboard Header -->
   <header class="dashboard-header">
     <div class="dashboard-header-content">
-      <a href="welcome.html" class="dashboard-logo">
+      <a href="/welcome.html" class="dashboard-logo">
         <span style="font-size: 1.5rem;">🎓</span>
         <strong>ScholarMatch</strong>
       </a>
       <nav class="dashboard-nav">
-        <a href="welcome.html">Home</a>
-        <a href="#about">About</a>
+        <a href="/welcome.html">Home</a>
+        <a href="/welcome.html#how-it-works">About</a>
       </nav>
     </div>
   </header>
@@ -33,12 +33,12 @@
       <form id="filterForm">
         <div class="filter-group">
           <label>Percentage</label>
-          <input type="number" id="marks" min="0" max="100" step="0.1" value="78" required />
+          <input type="number" id="marks" min="0" max="100" step="0.1" placeholder="Enter your percentage" required />
         </div>
 
         <div class="filter-group">
           <label>Family Income (₹/year)</label>
-          <input type="number" id="income" min="0" step="1000" value="300000" required />
+          <input type="number" id="income" min="0" step="1000" placeholder="Enter annual family income" required />
         </div>
 
         <div class="filter-group">
@@ -59,6 +59,7 @@
         <div class="filter-group">
           <label>Category</label>
           <select id="category">
+            <option value="any">Any</option>
             <option>General</option>
             <option>OBC</option>
             <option>SC</option>
@@ -70,6 +71,7 @@
         <div class="filter-group">
           <label>Gender</label>
           <select id="gender">
+            <option value="any">Any</option>
             <option>Male</option>
             <option>Female</option>
           </select>
@@ -90,17 +92,9 @@
         <div class="filter-group">
           <label>Disability</label>
           <select id="disability">
+            <option value="any">Any</option>
             <option>No</option>
             <option>Yes</option>
-          </select>
-        </div>
-
-        <div class="filter-group">
-          <label>Minority</label>
-          <select id="minority">
-            <option value="any">Any</option>
-            <option value="yes">Yes</option>
-            <option value="no">No</option>
           </select>
         </div>
 
@@ -111,12 +105,6 @@
 
         <button type="submit" class="filter-btn">Find Scholarships</button>
       </form>
-
-      <!-- Live Ticker Section -->
-      <div style="margin-top: 2rem; padding-top: 2rem; border-top: 1px solid var(--border);">
-        <h4 style="margin-bottom: 1rem; font-weight: 600;">📡 Live Updates</h4>
-        <div id="liveTicker" class="ticker" aria-live="polite"></div>
-      </div>
     </aside>
 
     <!-- Content Area -->
@@ -125,33 +113,44 @@
       <div id="statusBox" class="status info" style="display: none;">Loading scholarship data...</div>
 
       <!-- Recommended Scholarships Section -->
-      <section>
+      <section class="recommendations-section">
         <div class="content-header">
           <h2>🎯 Recommended Scholarships</h2>
           <span id="recommendationCount" class="result-count">0 matches found</span>
         </div>
-        <div id="recommendationCards" class="cards"></div>
-        <div id="emptyState" class="empty-state" style="display: none;">
-          <div class="empty-state-icon">🔍</div>
-          <h3>No Scholarships Found</h3>
-          <p>Try adjusting your filters to see more opportunities</p>
+        <div class="cards-scroll-panel" id="recommendationsScrollPanel">
+          <div id="recommendationCards" class="cards cards--scroll-inner"></div>
+          <div id="emptyState" class="empty-state empty-state--panel" style="display: none;">
+            <div class="empty-state-icon">🔍</div>
+            <h3>No Scholarships Found</h3>
+            <p>Try adjusting your filters to see more opportunities</p>
+          </div>
         </div>
       </section>
 
       <!-- Registered/Saved Scholarships Section -->
-      <section>
+      <section class="saved-section">
         <div class="content-header">
           <h2>⭐ Saved Scholarships</h2>
           <span id="registeredCount" class="result-count">0 saved</span>
         </div>
-        <div id="registeredCards" class="cards"></div>
-        <div id="emptyRegistered" class="empty-state" style="display: none;">
-          <div class="empty-state-icon">💾</div>
-          <h3>No Saved Scholarships Yet</h3>
-          <p>Click "Save" on any scholarship to store it here</p>
+        <div class="cards-scroll-panel cards-scroll-panel--saved">
+          <div id="registeredCards" class="cards cards--scroll-inner"></div>
+          <div id="emptyRegistered" class="empty-state empty-state--panel" style="display: none;">
+            <div class="empty-state-icon">💾</div>
+            <h3>No Saved Scholarships Yet</h3>
+            <p>Click "Save" on any scholarship to store it here</p>
+          </div>
         </div>
       </section>
     </main>
+
+    <!-- Right sidebar: scrolling updates from dataset / model -->
+    <aside class="ticker-sidebar" aria-label="Scholarship feed">
+      <h3 class="ticker-sidebar-title">📡 Live feed</h3>
+      <p class="ticker-sidebar-hint">Names from your dataset; after search, top matches appear here.</p>
+      <div id="liveTicker" class="ticker ticker--sidebar" aria-live="polite"></div>
+    </aside>
   </div>
 
   <!-- Scholarship Card Template -->
