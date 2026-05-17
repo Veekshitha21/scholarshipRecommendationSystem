@@ -9,6 +9,8 @@ from pathlib import Path
 
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import train_test_split
 import numpy as np
 
 ROOT = Path(__file__).resolve().parent
@@ -76,27 +78,81 @@ def load_and_prepare_data():
     return df
 
 
-def build_eligibility_index(df):
+def rule_based_eligible(user, scholarship):
     """
-    Build a data structure that maps student profiles to scholarship eligibility rankings.
-    Returns a dict that can be used for fast lookups during API requests.
+    Heuristic eligibility check. Returns True if student likely eligible for scholarship.
+    Used for labeling training data.
     """
-    eligibility_index = {
-        'scholarships': df['scholarship_name'].tolist(),
-        'max_incomes': df['max_income'].tolist(),
-        'min_marks': df['min_marks'].tolist(),
-        'genders': df['gender'].tolist(),
-        'education_levels': df['education_level'].tolist(),
-        'categories': df['category'].tolist(),
-        'disabilities': df['disability'].tolist(),
-        'amounts': df['scholarship_amount'].tolist(),
-        'count': len(df)
-    }
-    return eligibility_index
+    # Marks check
+    if user['marks'] < scholarship['min_marks']:
+        return False
+    
+    # Income check
+    if scholarship['max_income'] > 0 and user['income'] > scholarship['max_income']:
+        return False
+    
+    # Category match
+    if scholarship['category'] not in ['any', 'open']:
+        if scholarship['category'] != user['category']:
+            return False
+    
+    # Gender match
+    if scholarship['gender'] not in ['any', 'both']:
+        if scholarship['gender'] != user['gender']:
+            return False
+    
+    # Disability match
+    if scholarship['disability'] not in ['no', 'any']:
+        if scholarship['disability'] != user['disability']:
+            return False
+    
+    return True
+
+
+def build_training_examples(df, samples_per_sch=6):
+    """
+    Generate synthetic student profiles from scholarship criteria.
+    Returns X (feature vectors) and y (labels) for training.
+    """
+    X = []
+    y = []
+    
+    for _, scholarship in df.iterrows():
+        min_marks = float(scholarship['min_marks'])
+        max_income = float(scholarship['max_income'])
+        
+        # Generate samples_per_sch examples per scholarship
+        for _ in range(samples_per_sch):
+            # Eligible examples: marks above min, income below max
+            marks = np.random.uniform(min_marks, 100)
+            income = np.random.uniform(0, max(max_income * 1.5, 100000)) if max_income > 0 else np.random.uniform(0, 500000)
+            
+            user = {
+                'marks': marks,
+                'income': income,
+                'category': np.random.choice(['general', 'obc', 'sc', 'st']),
+                'gender': np.random.choice(['male', 'female']),
+                'disability': np.random.choice(['no', 'yes'])
+            }
+            
+            # Build 5-feature vector
+            marks_diff = user['marks'] - min_marks
+            income_margin = max(max_income - user['income'], 0) if max_income > 0 else 0
+            cat_match = 1 if scholarship['category'] in ['any', 'open'] or scholarship['category'] == user['category'] else 0
+            gen_match = 1 if scholarship['gender'] in ['any', 'both'] or scholarship['gender'] == user['gender'] else 0
+            dis_match = 1 if scholarship['disability'] in ['no', 'any'] or scholarship['disability'] == user['disability'] else 0
+            
+            features = [marks_diff, income_margin, cat_match, gen_match, dis_match]
+            label = 1 if rule_based_eligible(user, scholarship) else 0
+            
+            X.append(features)
+            y.append(label)
+    
+    return np.array(X), np.array(y)
 
 
 def train_and_save():
-    """Load data, build index, and save eligibility model."""
+    """Load data, train ML classifier, and save eligibility model."""
     print("Loading and preparing scholarship data...")
     df = load_and_prepare_data()
 
@@ -105,15 +161,41 @@ def train_and_save():
     for idx, row in df.iterrows():
         print(f"  {idx+1}. {row['scholarship_name'][:60]} - Income: ₹{row['max_income']:,.0f}, Marks: {row['min_marks']:.0f}")
 
-    print("\nBuilding eligibility index...")
-    eligibility_index = build_eligibility_index(df)
+    print("\nGenerating training data from scholarships...")
+    X, y = build_training_examples(df, samples_per_sch=6)
+    print(f"Generated {len(X)} training examples")
+    print(f"  Eligible: {(y == 1).sum()}, Not Eligible: {(y == 0).sum()}")
+    
+    # Train logistic regression
+    print("\nTraining Logistic Regression classifier...")
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    
+    scaler = StandardScaler()
+    X_train_scaled = scaler.fit_transform(X_train)
+    X_test_scaled = scaler.transform(X_test)
+    
+    clf = LogisticRegression(max_iter=200, class_weight='balanced', random_state=42)
+    clf.fit(X_train_scaled, y_train)
+    
+    train_acc = clf.score(X_train_scaled, y_train)
+    test_acc = clf.score(X_test_scaled, y_test)
+    
+    print(f"  Train accuracy: {train_acc:.4f}")
+    print(f"  Test accuracy: {test_acc:.4f}")
+    
+    # Save model and scaler
+    model_data = {
+        'clf': clf,
+        'scaler': scaler
+    }
 
-    print(f"Saving model to: {MODEL_PATH}")
+    print(f"\nSaving ML model to: {MODEL_PATH}")
     with open(MODEL_PATH, "wb") as f:
-        pickle.dump(eligibility_index, f)
+        pickle.dump(model_data, f)
 
     print(f"\n✅ Model trained successfully!")
-    print(f"   Scholarships indexed: {eligibility_index['count']}")
+    print(f"   Classifier trained on {len(X)} examples")
+    print(f"   Test accuracy: {test_acc:.2%}")
     print(f"   Model saved: {MODEL_PATH}")
 
 
