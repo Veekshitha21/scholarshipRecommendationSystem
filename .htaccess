@@ -1,0 +1,9 @@
+RewriteEngine On
+
+# Allow direct access to existing files and directories
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+
+# Route PHP API calls
+RewriteRule ^php/(.*)$ php/$1 [L]
+RewriteRule ^frontend/(.*)$ frontend/$1 [L]

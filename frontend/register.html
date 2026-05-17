@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Register - ScholarMatch</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="auth.css">
+</head>
+<body class="welcome-page">
+  <header class="nav-header">
+    <div class="nav-container">
+      <a class="logo" href="welcome.html"><span class="logo-icon">🎓</span><span class="logo-text">ScholarMatch</span></a>
+    </div>
+  </header>
+
+  <main class="auth-container">
+    <form id="registerForm" class="auth-form" method="post" action="#" novalidate>
+      <h2>Create an account</h2>
+
+      <label for="name">Full name</label>
+      <input id="name" name="name" type="text" required>
+
+      <label for="education">Education level</label>
+      <select id="education" name="education" required>
+        <option value="">Select</option>
+        <option>High School</option>
+        <option>Bachelor's</option>
+        <option>Master's</option>
+        <option>Diploma</option>
+        <option>PhD</option>
+        <option>Other</option>
+      </select>
+
+      <label for="category">Category</label>
+      <select id="category" name="category" required>
+        <option value="">Select</option>
+        <option>General</option>
+        <option>OBC</option>
+        <option>SC</option>
+        <option>ST</option>
+        <option>Minority</option>
+      </select>
+
+      <label for="phone">Phone number</label>
+      <input id="phone" name="phone" type="tel" pattern="[0-9]{7,15}" placeholder="e.g. 9876543210" required>
+
+      <label for="email">Email</label>
+      <input id="email" name="email" type="email" required>
+
+      <label for="income">Family income (annual)</label>
+      <input id="income" name="income" type="number" min="0" step="1000" required>
+
+      <label for="disability">Disability</label>
+      <select id="disability" name="disability" required>
+        <option value="">Select</option>
+        <option value="no">No</option>
+        <option value="yes">Yes</option>
+      </select>
+
+      <label for="gender">Gender</label>
+      <select id="gender" name="gender" required>
+        <option value="">Select</option>
+        <option>Male</option>
+        <option>Female</option>
+        <option>Other</option>
+        <option>Prefer not to say</option>
+      </select>
+
+      <label for="password">Password</label>
+      <input id="password" name="password" type="password" minlength="6" required>
+
+      <label for="confirmPassword">Confirm password</label>
+      <input id="confirmPassword" name="confirmPassword" type="password" minlength="6" required>
+
+      <div id="formError" class="form-error" aria-live="polite" style="display:none;"></div>
+
+      <button type="submit" class="btn-cta btn-cta-primary">Register</button>
+
+      <p class="muted">Already have an account? <a href="login.html">Login</a></p>
+    </form>
+  </main>
+
+    <script>
+    const form = document.getElementById('registerForm');
+    const pwd = document.getElementById('password');
+    const cpwd = document.getElementById('confirmPassword');
+    const err = document.getElementById('formError');
+
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      err.style.display = 'none';
+      if (pwd.value !== cpwd.value) {
+        err.textContent = 'Passwords do not match.';
+        err.style.display = 'block';
+        cpwd.focus();
+        return false;
+      }
+
+      const payload = {
+        name: document.getElementById('name').value.trim(),
+        education: document.getElementById('education').value,
+        category: document.getElementById('category').value,
+        phone: document.getElementById('phone').value.trim(),
+        email: document.getElementById('email').value.trim(),
+        income: document.getElementById('income').value,
+        disability: document.getElementById('disability').value,
+        gender: document.getElementById('gender').value,
+        password: pwd.value
+      };
+
+      fetch('../php/api_register.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        credentials: 'same-origin'
+      }).then(r => r.json()).then(j => {
+        if (j && j.success) {
+          // redirect to welcome where session check will show profile
+          window.location.href = 'welcome.html';
+        } else {
+          err.textContent = j.error || j.message || 'Registration failed';
+          err.style.display = 'block';
+        }
+      }).catch(errFetch => {
+        err.textContent = 'Network or server error'; err.style.display = 'block';
+      });
+    });
+  </script>
+</body>
+</html>

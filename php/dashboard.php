@@ -24,7 +24,13 @@ function display_value($value, string $fallback = 'Any'): string
   <main class="dashboard">
     <header class="topbar">
       <div>
-        <strong>🎓 ScholarMatch</strong><br>
+        <strong>
+          <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="vertical-align:middle;margin-right:6px;">
+            <path d="M12 2L4 5v6c0 5 3.58 9.74 8 11 4.42-1.26 8-6 8-11V5l-8-3z" fill="#FF8A5B"/>
+            <path d="M10 13l2 2 5-5" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          ScholarMatch
+        </strong><br>
         <span class="small">Logged in as <?= htmlspecialchars($user['name']) ?></span>
       </div>
       <div class="top-actions">
@@ -32,6 +38,32 @@ function display_value($value, string $fallback = 'Any'): string
         <a class="btn primary" href="logout.php">Logout</a>
       </div>
     </header>
+
+    <section class="scholarship-launch-section">
+      <a class="scholarship-launch-card" href="http://127.0.0.1:5000/eligibility" aria-label="Check scholarship eligibility">
+        <div class="scholarship-launch-copy">
+          <span class="launch-eyebrow">3D Scholarship Model</span>
+          <h2>Launch the eligibility checker</h2>
+          <p>Tap the scholarship model to open ScholarMatch eligibility and see your best matches instantly.</p>
+          <div class="launch-action">
+            <span class="launch-button">Check Eligibility</span>
+            <span class="launch-note">Built for session-based profile matching</span>
+          </div>
+        </div>
+        <div class="scholarship-launch-visual" aria-hidden="true">
+          <div class="launch-orbit launch-orbit-a"></div>
+          <div class="launch-orbit launch-orbit-b"></div>
+          <div class="launch-card-stack stack-one"></div>
+          <div class="launch-card-stack stack-two"></div>
+          <div class="launch-cube">
+            <div class="cube-face cube-face-top"></div>
+            <div class="cube-face cube-face-left"></div>
+            <div class="cube-face cube-face-right"></div>
+          </div>
+          <div class="launch-ribbon">Scholarship</div>
+        </div>
+      </a>
+    </section>
 
     <section class="cards">
       <article class="panel">

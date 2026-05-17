@@ -1,0 +1,74 @@
+/* Auth page styles (form container kept minimal and consistent with main styles) */
+.auth-container {
+  min-height: calc(100vh - 80px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 1rem;
+}
+
+.auth-form {
+  width: 100%;
+  max-width: 520px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 2rem;
+  box-shadow: var(--shadow-lg);
+}
+
+.auth-form h2 {
+  margin-bottom: 1rem;
+  font-family: 'Poppins', sans-serif;
+}
+
+.auth-form label {
+  display: block;
+  margin-top: 0.75rem;
+  margin-bottom: 0.35rem;
+  color: var(--text-light);
+  font-size: 0.9rem;
+}
+
+.auth-form input,
+.auth-form select {
+  width: 100%;
+  padding: 0.75rem 0.9rem;
+  border-radius: 8px;
+  border: 1px solid rgba(26,35,50,0.06);
+  background: #fff;
+  outline: none;
+  font-size: 0.95rem;
+}
+
+.auth-form input:focus,
+.auth-form select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 6px 18px rgba(0,180,166,0.06);
+}
+
+.auth-form .btn-cta {
+  width: 100%;
+  margin-top: 1.25rem;
+}
+
+.muted {
+  margin-top: 1rem;
+  color: var(--text-light);
+  font-size: 0.95rem;
+}
+
+.muted a { color: var(--accent-dark); text-decoration: none; font-weight:600 }
+
+.form-error {
+  margin-top: 0.75rem;
+  padding: 0.6rem 0.75rem;
+  background: rgba(255,106,53,0.06);
+  color: #b22a00;
+  border-radius: 8px;
+  font-size: 0.95rem;
+}
+
+@media (max-width: 640px) {
+  .auth-form { padding: 1.25rem; border-radius: 10px; }
+}

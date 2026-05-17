@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Login - ScholarMatch</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="auth.css">
+</head>
+<body class="welcome-page">
+  <header class="nav-header">
+    <div class="nav-container">
+      <a class="logo" href="welcome.html"><span class="logo-icon">🎓</span><span class="logo-text">ScholarMatch</span></a>
+    </div>
+  </header>
+
+  <main class="auth-container">
+    <form id="loginForm" class="auth-form" method="post" action="#" novalidate>
+      <h2>Sign in</h2>
+
+      <label for="name">Name</label>
+      <input id="name" name="name" type="text" required>
+
+      <label for="password">Password</label>
+      <input id="password" name="password" type="password" required>
+
+      <div id="loginError" class="form-error" aria-live="polite" style="display:none;"></div>
+
+      <button type="submit" class="btn-cta btn-cta-primary">Login</button>
+
+      <p class="muted">Don't have an account? <a href="register.html">Register</a></p>
+    </form>
+  </main>
+
+  <script>
+    const loginForm = document.getElementById('loginForm');
+    const loginError = document.getElementById('loginError');
+    loginForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      loginError.style.display = 'none';
+      const payload = {
+        name: document.getElementById('name').value.trim(),
+        password: document.getElementById('password').value
+      };
+      fetch('../php/api_login.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        credentials: 'same-origin'
+      }).then(r => r.json()).then(j => {
+        if (j && j.success) {
+          window.location.href = 'welcome.html';
+        } else {
+          loginError.textContent = j.error || 'Login failed';
+          loginError.style.display = 'block';
+        }
+      }).catch(() => {
+        loginError.textContent = 'Network or server error'; loginError.style.display = 'block';
+      });
+    });
+  </script>
+</body>
+</html>

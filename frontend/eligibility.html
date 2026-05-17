@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Eligibility Predictor - ScholarMatch</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    body {
+      background-color: var(--bg-light);
+    }
+
+    .eligibility-wrapper {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .eligibility-container {
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 2rem 1rem;
+      flex: 1;
+      width: 100%;
+    }
+
+    .eligibility-hero {
+      text-align: center;
+      margin-bottom: 3rem;
+    }
+
+    .eligibility-hero h1 {
+      font-size: 2.5rem;
+      margin-bottom: 1rem;
+      color: var(--primary);
+      font-weight: 800;
+    }
+
+    .eligibility-hero p {
+      font-size: 1.1rem;
+      color: var(--text-light);
+      max-width: 600px;
+      margin: 0 auto;
+    }
+
+    .eligibility-card {
+      background: var(--surface);
+      padding: 2.5rem;
+      border-radius: 12px;
+      box-shadow: var(--shadow-md);
+      max-width: 600px;
+      margin: 0 auto;
+    }
+
+    .scholarship-input-group {
+      margin-bottom: 1.5rem;
+    }
+
+    .scholarship-input-group label {
+      display: block;
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 0.75rem;
+      color: var(--text);
+    }
+
+    .search-input-wrapper {
+      position: relative;
+    }
+
+    .scholarship-input-group input {
+      width: 100%;
+      padding: 0.875rem 1rem;
+      border: 2px solid var(--border-color);
+      border-radius: 8px;
+      font-size: 1rem;
+      font-family: 'Poppins', sans-serif;
+      transition: all 0.3s ease;
+      background: white;
+    }
+
+    .scholarship-input-group input:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(255, 138, 91, 0.1);
+    }
+
+    .autocomplete-list {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      background: white;
+      border: 2px solid var(--border-color);
+      border-top: none;
+      border-radius: 0 0 8px 8px;
+      max-height: 300px;
+      overflow-y: auto;
+      z-index: 10;
+      display: none;
+      margin-top: -2px;
+    }
+
+    .autocomplete-list.active {
+      display: block;
+    }
+
+    .autocomplete-item {
+      padding: 0.75rem 1rem;
+      cursor: pointer;
+      transition: background 0.2s;
+      font-size: 0.95rem;
+    }
+
+    .autocomplete-item:hover {
+      background: var(--bg-light);
+    }
+
+    .autocomplete-item.selected {
+      background: var(--primary);
+      color: white;
+    }
+
+    .check-btn {
+      width: 100%;
+      padding: 1rem;
+      background: var(--primary);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      font-family: 'Poppins', sans-serif;
+    }
+
+    .check-btn:hover:not(:disabled) {
+      background: var(--primary-dark, #FF6B3D);
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-lg);
+    }
+
+    .check-btn:active:not(:disabled) {
+      transform: translateY(0);
+    }
+
+    .check-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .error-message {
+      background: #fee2e2;
+      color: #dc2626;
+      padding: 1rem;
+      border-radius: 8px;
+      margin-bottom: 1rem;
+      border-left: 4px solid #dc2626;
+      display: none;
+    }
+
+    .error-message.show {
+      display: block;
+    }
+
+    .loading-spinner {
+      width: 40px;
+      height: 40px;
+      border: 4px solid var(--bg-light);
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin: 0 auto;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .result-section {
+      margin-top: 2rem;
+      padding: 2rem;
+      background: var(--bg-light);
+      border-radius: 12px;
+      display: none;
+    }
+
+    .result-section.show {
+      display: block;
+      animation: slideUp 0.3s ease;
+    }
+
+    @keyframes slideUp {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .result-header {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+
+    .result-status {
+      font-size: 3rem;
+      margin-bottom: 1rem;
+    }
+
+    .result-status.eligible .icon {
+      color: #10b981;
+    }
+
+    .result-status.not-eligible .icon {
+      color: #dc2626;
+    }
+
+    .result-status.marginal .icon {
+      color: #f59e0b;
+    }
+
+    .result-message {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 0.5rem;
+    }
+
+    .result-scholarship-name {
+      font-size: 1.1rem;
+      color: var(--text-light);
+      margin-bottom: 1.5rem;
+    }
+
+    .percentage-display {
+      font-size: 4rem;
+      font-weight: 800;
+      color: var(--primary);
+      margin-bottom: 0.5rem;
+    }
+
+    .percentage-label {
+      font-size: 0.95rem;
+      color: var(--text-light);
+      margin-bottom: 1.5rem;
+    }
+
+    .progress-bar {
+      width: 100%;
+      height: 10px;
+      background: var(--bg-light);
+      border-radius: 10px;
+      overflow: hidden;
+      margin-bottom: 2rem;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: var(--primary);
+      transition: width 0.5s ease;
+    }
+
+    .result-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    @media (max-width: 600px) {
+      .result-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .result-card {
+      background: var(--surface);
+      padding: 1.5rem;
+      border-radius: 8px;
+      border-left: 4px solid var(--accent);
+    }
+
+    .result-card-label {
+      font-size: 0.85rem;
+      color: var(--text-light);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 0.5rem;
+      font-weight: 600;
+    }
+
+    .result-card-value {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .result-card-value.positive {
+      color: #10b981;
+    }
+
+    .result-card-value.negative {
+      color: #dc2626;
+    }
+
+    .eligibility-details {
+      background: var(--surface);
+      padding: 1.5rem;
+      border-radius: 8px;
+      margin-bottom: 2rem;
+    }
+
+    .details-title {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 1rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .detail-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 0.75rem 0;
+      font-size: 0.95rem;
+    }
+
+    .detail-label {
+      color: var(--text-light);
+    }
+
+    .detail-value {
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    .confidence-info {
+      background: rgba(255, 138, 91, 0.1);
+      padding: 1rem;
+      border-radius: 8px;
+      text-align: center;
+      margin-top: 1.5rem;
+    }
+
+    .confidence-label {
+      font-size: 0.85rem;
+      color: var(--text-light);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 0.5rem;
+    }
+
+    .confidence-value {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--primary);
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 2rem;
+      color: var(--text-light);
+    }
+
+    .empty-state-icon {
+      font-size: 3rem;
+      margin-bottom: 1rem;
+    }
+
+    @media (max-width: 768px) {
+      .eligibility-hero h1 {
+        font-size: 1.75rem;
+      }
+
+      .eligibility-card {
+        padding: 1.5rem;
+      }
+
+      .percentage-display {
+        font-size: 2.5rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Dashboard Header -->
+  <header class="dashboard-header">
+    <div class="dashboard-header-content">
+      <a href="/" class="dashboard-logo">
+        <span style="font-size: 1.5rem;">🎓</span>
+        <strong>ScholarMatch</strong>
+      </a>
+      <nav class="dashboard-nav" style="margin-left:auto;">
+        <a href="/">Home</a>
+        <a href="/index.html">Find Scholarships</a>
+        <a href="/eligibility" style="color: var(--primary); border-bottom: 2px solid var(--primary);">Check Eligibility</a>
+      </nav>
+      <div class="auth-buttons" style="display:flex;align-items:center;gap:0.5rem;margin-left:0.75rem;">
+        <div class="profile-menu">
+          <a href="/login.html" id="loginBtn" class="nav-link nav-link--login">Login</a>
+          <div id="profileDropdown" class="profile-dropdown">
+            <a href="#" id="logoutDropdownBtn" class="dropdown-item">Logout</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="eligibility-wrapper">
+    <div class="eligibility-container">
+      <!-- Hero Section -->
+      <div class="eligibility-hero">
+        <h1>
+          <svg aria-hidden="true" width="36" height="36" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="vertical-align:middle;margin-right:8px;">
+            <path d="M12 2L4 5v6c0 5 3.58 9.74 8 11 4.42-1.26 8-6 8-11V5l-8-3z" fill="#00B4A6"/>
+            <path d="M9.5 12.5l1.75 1.75L15.5 10" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          Check Your Eligibility
+        </h1>
+        <p>Enter a scholarship name and we'll check if you're eligible based on your profile. Results are powered by AI prediction models.</p>
+      </div>
+
+      <!-- Main Card -->
+      <div class="eligibility-card">
+        <div id="errorMessage" class="error-message"></div>
+
+        <!-- Search Form -->
+        <form id="eligibilityForm">
+          <div class="scholarship-input-group">
+            <label for="scholarshipName">Scholarship Name</label>
+            <div class="search-input-wrapper">
+              <input
+                type="text"
+                id="scholarshipName"
+                placeholder="Search for a scholarship..."
+                autocomplete="off"
+                required
+              />
+              <div id="autocompleteList" class="autocomplete-list"></div>
+            </div>
+          </div>
+          <button type="submit" class="check-btn" id="checkBtn" data-state="check">Check Eligibility</button>
+        </form>
+
+        <!-- Loading State -->
+        <div id="loadingState" style="display: none; text-align: center; padding: 2rem;">
+          <div class="loading-spinner"></div>
+          <p style="margin-top: 1rem; color: var(--text-light);">Analyzing your eligibility...</p>
+        </div>
+
+        <!-- Result Section -->
+        <div id="resultSection" class="result-section">
+          <!-- Result Header -->
+          <div class="result-header">
+            <div class="result-status" id="resultStatus">
+              <span class="icon" id="statusIcon"></span>
+            </div>
+            <div class="result-message" id="resultMessage"></div>
+            <div class="result-scholarship-name" id="scholarshipNameDisplay"></div>
+          </div>
+
+          <!-- Percentage Display -->
+          <div style="text-align: center; margin-bottom: 2rem;">
+            <div class="percentage-display" id="percentageDisplay"></div>
+            <div class="percentage-label">Eligibility Percentage</div>
+          </div>
+
+          <!-- Progress Bar -->
+          <div class="progress-bar">
+            <div id="progressFill" class="progress-fill" style="width: 0%"></div>
+          </div>
+
+          <!-- Key Metrics -->
+          <div class="result-grid">
+            <div class="result-card">
+              <div class="result-card-label">Your Marks</div>
+              <div class="result-card-value" id="yourMarks"></div>
+            </div>
+            <div class="result-card">
+              <div class="result-card-label">Required Marks</div>
+              <div class="result-card-value" id="requiredMarks"></div>
+            </div>
+            <div class="result-card">
+              <div class="result-card-label">Your Income</div>
+              <div class="result-card-value" id="yourIncome"></div>
+            </div>
+            <div class="result-card">
+              <div class="result-card-label">Max Eligible Income</div>
+              <div class="result-card-value" id="maxIncome"></div>
+            </div>
+          </div>
+
+          <!-- Eligibility Details -->
+          <div class="eligibility-details">
+            <div class="details-title">Scholarship Requirements</div>
+            <div class="detail-item">
+              <span class="detail-label">Category</span>
+              <span class="detail-value" id="reqCategory">-</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Gender</span>
+              <span class="detail-value" id="reqGender">-</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Disability</span>
+              <span class="detail-value" id="reqDisability">-</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Education Level</span>
+              <span class="detail-value" id="reqEducation">-</span>
+            </div>
+          </div>
+
+          <!-- Confidence Info -->
+          <div class="confidence-info">
+            <div class="confidence-label">Model Confidence</div>
+            <div class="confidence-value" id="confidenceDisplay"></div>
+          </div>
+        </div>
+
+        <!-- Empty State -->
+        <div id="emptyState" class="empty-state">
+          <div class="empty-state-icon">📋</div>
+          <p>Enter a scholarship name to check your eligibility</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = '/api';
+    let scholarshipsList = [];
+
+    // Fetch scholarship names on page load
+    async function loadScholarshipNames() {
+      try {
+        const response = await fetch(`${API_BASE}/scholarship-names`);
+        const data = await response.json();
+        scholarshipsList = data.names || [];
+      } catch (error) {
+        console.error('Error loading scholarship names:', error);
+      }
+    }
+
+    // Autocomplete functionality
+    const scholarshipInput = document.getElementById('scholarshipName');
+    const autocompleteList = document.getElementById('autocompleteList');
+
+    scholarshipInput.addEventListener('input', (e) => {
+      const value = e.target.value.toLowerCase().trim();
+      
+      if (!value) {
+        autocompleteList.classList.remove('active');
+        return;
+      }
+
+      const filtered = scholarshipsList.filter(name => 
+        name.toLowerCase().includes(value)
+      ).slice(0, 10);
+
+      if (filtered.length === 0) {
+        autocompleteList.classList.remove('active');
+        return;
+      }
+
+      autocompleteList.innerHTML = filtered.map((name, index) => `
+        <div class="autocomplete-item" data-value="${name}">${name}</div>
+      `).join('');
+
+      autocompleteList.classList.add('active');
+
+      // Add click handlers to autocomplete items — set value and submit form in one click
+      document.querySelectorAll('.autocomplete-item').forEach(item => {
+        item.addEventListener('click', () => {
+          const val = item.getAttribute('data-value');
+          scholarshipInput.value = val;
+          autocompleteList.classList.remove('active');
+          // submit the form programmatically so the existing submit handler runs
+          const form = document.getElementById('eligibilityForm');
+          if (form) {
+            if (typeof form.requestSubmit === 'function') {
+              form.requestSubmit();
+            } else {
+              form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+            }
+          }
+        });
+      });
+    });
+
+    // Close autocomplete on blur
+    scholarshipInput.addEventListener('blur', () => {
+      setTimeout(() => {
+        autocompleteList.classList.remove('active');
+      }, 200);
+    });
+
+    // Form submission
+    document.getElementById('eligibilityForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const scholarshipName = scholarshipInput.value.trim();
+      if (!scholarshipName) {
+        showError('Please enter a scholarship name');
+        return;
+      }
+
+      // Show loading state
+      const checkBtn = document.getElementById('checkBtn');
+      if (checkBtn) {
+        checkBtn.type = 'submit';
+        checkBtn.onclick = null;
+        checkBtn.textContent = 'Checking...';
+      }
+      document.getElementById('loadingState').style.display = 'block';
+      document.getElementById('resultSection').classList.remove('show');
+      document.getElementById('emptyState').style.display = 'none';
+      document.getElementById('errorMessage').classList.remove('show');
+      document.getElementById('checkBtn').disabled = true;
+
+      try {
+        const response = await fetch(`${API_BASE}/check-scholarship-eligibility`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ scholarship_name: scholarshipName })
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+          if (response.status === 401) {
+            showError('Please log in to check eligibility');
+          } else if (response.status === 404) {
+            showError(result.error || 'Scholarship not found');
+          } else {
+            showError(result.error || 'Error checking eligibility');
+          }
+          document.getElementById('loadingState').style.display = 'none';
+          return;
+        }
+
+        displayResults(result);
+      } catch (error) {
+        console.error('Error:', error);
+        showError('Network error. Please try again.');
+        document.getElementById('loadingState').style.display = 'none';
+      } finally {
+        // If results are not shown (error), restore button label
+        const checkBtnFinally = document.getElementById('checkBtn');
+        if (checkBtnFinally && !document.getElementById('resultSection').classList.contains('show')) {
+          checkBtnFinally.textContent = 'Check Eligibility';
+          checkBtnFinally.type = 'submit';
+          checkBtnFinally.onclick = null;
+        }
+        document.getElementById('checkBtn').disabled = false;
+      }
+    });
+
+    function showError(message) {
+      const errorDiv = document.getElementById('errorMessage');
+      errorDiv.textContent = message;
+      errorDiv.classList.add('show');
+    }
+
+    function displayResults(data) {
+      document.getElementById('loadingState').style.display = 'none';
+      document.getElementById('emptyState').style.display = 'none';
+      
+      const percentage = data.eligibility_percentage;
+      const isEligible = data.eligible;
+
+      // Update status
+      const statusElement = document.getElementById('resultStatus');
+      let icon, message;
+      
+      if (isEligible) {
+        if (percentage >= 80) {
+          icon = '✅';
+          message = 'Highly Eligible';
+          statusElement.className = 'result-status eligible';
+        } else {
+          icon = '⚠️';
+          message = 'Marginally Eligible';
+          statusElement.className = 'result-status marginal';
+        }
+      } else {
+        icon = '❌';
+        message = 'Not Eligible';
+        statusElement.className = 'result-status not-eligible';
+      }
+
+      document.getElementById('statusIcon').textContent = icon;
+      document.getElementById('resultMessage').textContent = message;
+      document.getElementById('scholarshipNameDisplay').textContent = data.scholarship_name;
+
+      // Update percentage
+      document.getElementById('percentageDisplay').textContent = percentage.toFixed(1) + '%';
+      document.getElementById('progressFill').style.width = percentage + '%';
+
+      // Update metrics
+      document.getElementById('yourMarks').textContent = data.student_marks?.toFixed(1) || 'N/A';
+      document.getElementById('requiredMarks').textContent = data.required_marks?.toFixed(1) || 'N/A';
+      
+      const yourIncomeText = data.student_income 
+        ? '₹' + Math.round(data.student_income).toLocaleString('en-IN')
+        : 'N/A';
+      document.getElementById('yourIncome').textContent = yourIncomeText;
+
+      const maxIncomeText = data.max_eligible_income
+        ? '₹' + Math.round(data.max_eligible_income).toLocaleString('en-IN')
+        : 'N/A';
+      document.getElementById('maxIncome').textContent = maxIncomeText;
+
+      // Update requirements
+      if (data.scholarship_requirements) {
+        document.getElementById('reqCategory').textContent = data.scholarship_requirements.category || '-';
+        document.getElementById('reqGender').textContent = data.scholarship_requirements.gender || '-';
+        document.getElementById('reqDisability').textContent = data.scholarship_requirements.disability || '-';
+        document.getElementById('reqEducation').textContent = data.scholarship_requirements.education_level || '-';
+      }
+
+      // Update confidence
+      const confidencePercent = (data.confidence * 100).toFixed(0);
+      document.getElementById('confidenceDisplay').textContent = confidencePercent + '%';
+
+      // Show result section
+      document.getElementById('resultSection').classList.add('show');
+
+      // Switch check button to recommendations action
+      setRecommendationButton(data.scholarship_name);
+    }
+    
+    // After showing results, switch the check button into a find scholarship button
+    function setRecommendationButton(scholarshipName) {
+      const btn = document.getElementById('checkBtn');
+      if (!btn) return;
+      btn.textContent = 'Find Scholarship';
+      btn.type = 'button';
+      btn.setAttribute('data-state', 'find');
+      btn.onclick = () => {
+        // Navigate to recommendations page
+        const target = 'index.html';
+        window.location.href = target;
+      };
+    }
+
+    // Initialize
+    loadScholarshipNames();
+  </script>
+</body>
+</html>

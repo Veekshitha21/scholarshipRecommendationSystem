@@ -3,6 +3,7 @@
 document.addEventListener('DOMContentLoaded', () => {
   initAnimations();
   animateCounters();
+  checkSession();
 });
 
 function initAnimations() {
@@ -102,3 +103,37 @@ document.querySelectorAll('.btn-cta').forEach((button) => {
 });
 
 console.log('Welcome page animations initialized');
+function checkSession() {
+  fetch('../php/api_me.php', { credentials: 'include' })
+    .then(r => {
+      if (!r.ok) throw new Error('no session');
+      return r.json();
+    })
+    .then(data => {
+      if (data && data.user) showProfile(data.user);
+    }).catch(() => {});
+}
+
+function showProfile(user) {
+  // Replace hero content with profile summary
+  const heroContent = document.querySelector('.hero-content');
+  if (!heroContent) return;
+  heroContent.innerHTML = `
+    <div class="hero-badge">Welcome back</div>
+    <h2 class="hero-title">Hi, ${escapeHtml(user.name)}</h2>
+    <p class="hero-subtitle">This is your profile. Email: ${escapeHtml(user.email || '-')}</p>
+    <div class="hero-cta">
+      <button id="goToDashboard" class="btn-cta btn-cta-primary">Go to Dashboard</button>
+      <button id="logoutBtn" class="btn-cta btn-cta-secondary">Logout</button>
+    </div>
+  `;
+  document.getElementById('logoutBtn').addEventListener('click', () => {
+    fetch('../php/logout.php', { credentials: 'include' })
+      .then(() => { location.reload(); })
+      .catch(() => { location.reload(); });
+  });
+  const dash = document.getElementById('goToDashboard');
+  if (dash) dash.addEventListener('click', () => { window.location.href = 'index.html'; });
+}
+
+function escapeHtml(s) { return String(s).replace(/[&<>\"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"})[c]); }

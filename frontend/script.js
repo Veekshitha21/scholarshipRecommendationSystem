@@ -3,7 +3,8 @@ const REGISTERED_KEY = "scholarmatch_registered";
 const state = {
   recommendations: [],
   registered: loadRegistered(),
-  tickerData: []
+  tickerData: [],
+  apiMetrics: null
 };
 
 const filterForm = document.getElementById("filterForm");
@@ -79,12 +80,16 @@ async function fetchFromApi(user) {
     const data = await res.json();
     if (!data || !Array.isArray(data.results)) throw new Error("Bad API response");
 
+    state.apiMetrics = data.metrics || null;
+
     state.recommendations = data.results
       .map((r) => ({
         scholarship_name: r.name,
         score: r.score,
         eligible: Boolean(r.eligible),
         link: r.link,
+        success_probability: Number(r.success_probability ?? 0),
+        chance_level: String(r.chance_level || "Unknown"),
         max_income: r.max_income,
         scholarship_amount: r.scholarship_amount,
         education_level: normalizeEducationLevel(r.education_level),
@@ -154,7 +159,7 @@ function renderRecommendations() {
   recommendationCount.textContent = `${state.recommendations.length} matches found`;
 
   state.recommendations.forEach((s) => {
-    recommendationCards.appendChild(makeCard(s, true));
+    recommendationCards.appendChild(makeCard(s, "save"));
   });
 }
 
@@ -171,16 +176,15 @@ function renderRegistered() {
   registeredCount.textContent = `${state.registered.length} saved`;
 
   state.registered.forEach((s) => {
-    const card = makeCard(s, false);
+    const card = makeCard(s, "unsave");
     const registerBtn = card.querySelector(".register-btn");
-    registerBtn.textContent = "✓ Saved";
-    registerBtn.disabled = true;
-    registerBtn.classList.add("registered");
+    registerBtn.textContent = "Unsave";
+    registerBtn.classList.add("registered", "unsave");
     registeredCards.appendChild(card);
   });
 }
 
-function makeCard(scholarship, allowRegister) {
+function makeCard(scholarship, actionMode = "save") {
   const node = cardTemplate.content.cloneNode(true);
 
   node.querySelector(".title").textContent = scholarship.scholarship_name;
@@ -219,15 +223,32 @@ function makeCard(scholarship, allowRegister) {
     applicableEl.style.fontWeight = "600";
   }
   
-  // Add Accuracy Value (92.3% based on model documentation)
+  const successProbabilityEl = node.querySelector(".success-probability-value");
+  successProbabilityEl.textContent = `${Math.round(Number(scholarship.success_probability) || 0)}%`;
+  successProbabilityEl.style.color = scholarship.success_probability >= 75 ? "#00B4A6" : scholarship.success_probability >= 40 ? "#FF8A5B" : "#666";
+  successProbabilityEl.style.fontWeight = "700";
+
+  const chanceLevelEl = node.querySelector(".chance-level-value");
+  chanceLevelEl.textContent = scholarship.chance_level || "Unknown";
+  chanceLevelEl.style.fontWeight = "700";
+  chanceLevelEl.style.color = scholarship.chance_level === "High Chance" ? "#00B4A6" : scholarship.chance_level === "Medium Chance" ? "#FF8A5B" : "#666";
+
+  // Backend metrics returned by the recommendation API
   const accuracyEl = node.querySelector(".accuracy-value");
-  accuracyEl.textContent = "92.3%";
+  const apiAccuracy = state.apiMetrics?.accuracy_percent;
+  accuracyEl.textContent = apiAccuracy == null ? "N/A" : `${Number(apiAccuracy).toFixed(2)}%`;
   accuracyEl.style.color = "#00B4A6";
   accuracyEl.style.fontWeight = "700";
+
+  const responseTimeEl = node.querySelector(".response-time-value");
+  const responseTime = state.apiMetrics?.last_response_time_ms;
+  responseTimeEl.textContent = responseTime == null ? "N/A" : `${Number(responseTime).toFixed(2)} ms`;
+  responseTimeEl.style.color = "#666";
+  responseTimeEl.style.fontWeight = "600";
   
-  // Add Error Rate (2.7% based on model documentation)
   const errorRateEl = node.querySelector(".error-rate-value");
-  errorRateEl.textContent = "2.7%";
+  const errorRate = state.apiMetrics?.error_rate_percent;
+  errorRateEl.textContent = errorRate == null ? "N/A" : `${Number(errorRate).toFixed(2)}%`;
   errorRateEl.style.color = "#666";
   errorRateEl.style.fontWeight = "600";
 
@@ -248,24 +269,30 @@ function makeCard(scholarship, allowRegister) {
   });
 
   const btn = node.querySelector(".register-btn");
-  btn.addEventListener("click", () => {
-    if (!allowRegister) return;
-
-    const exists = state.registered.find((x) => x.scholarship_name === scholarship.scholarship_name);
-    if (!exists) {
-      state.registered.push({ ...scholarship });
+  if (actionMode === "unsave") {
+    btn.textContent = "Unsave";
+    btn.addEventListener("click", () => {
+      state.registered = state.registered.filter(
+        (x) => x.scholarship_name !== scholarship.scholarship_name
+      );
       saveRegistered(state.registered);
       renderRegistered();
       renderRecommendations();
-    }
+    });
+  } else {
+    btn.addEventListener("click", () => {
+      const exists = state.registered.find((x) => x.scholarship_name === scholarship.scholarship_name);
+      if (!exists) {
+        state.registered.push({ ...scholarship });
+        saveRegistered(state.registered);
+        renderRegistered();
+        renderRecommendations();
+      }
 
-    btn.textContent = "✓ Saved";
-    btn.disabled = true;
-    btn.classList.add("registered");
-  });
-
-  if (!allowRegister) {
-    btn.disabled = true;
+      btn.textContent = "✓ Saved";
+      btn.disabled = true;
+      btn.classList.add("registered");
+    });
   }
 
   return node;

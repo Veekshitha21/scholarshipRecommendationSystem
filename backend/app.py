@@ -1,19 +1,72 @@
 import pickle
 import re
+import sqlite3
 from pathlib import Path
-
+import time
+import threading
 import pandas as pd
-from flask import Flask, jsonify, request, send_from_directory
+import numpy as np
+from flask import Flask, jsonify, request, send_from_directory, session
+from datetime import timedelta
 from flask_cors import CORS
 from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.preprocessing import StandardScaler
+from werkzeug.security import check_password_hash, generate_password_hash
 
 app = Flask(__name__)
 CORS(app)
+app.secret_key = "scholarmatch-dev-secret"
+app.permanent_session_lifetime = timedelta(hours=24)
 
 CSV_PATH = Path(__file__).resolve().parent.parent / "ml" / "structured_real_scholarships.csv"
 RANK_MODEL_PATH = Path(__file__).resolve().parent.parent / "ml" / "rank_model.pkl"
+SUCCESS_MODEL_PATH = Path(__file__).resolve().parent.parent / "ml" / "success_model.pkl"
+ELIGIBILITY_CLASSIFIER_PATH = Path(__file__).resolve().parent.parent / "ml" / "eligibility_classifier.pkl"
+PERCENTAGE_PREDICTOR_PATH = Path(__file__).resolve().parent.parent / "ml" / "percentage_predictor.pkl"
+ELIGIBILITY_SCALER_PATH = Path(__file__).resolve().parent.parent / "ml" / "eligibility_scaler.pkl"
+ELIGIBILITY_ENCODERS_PATH = Path(__file__).resolve().parent.parent / "ml" / "eligibility_encoders.pkl"
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 ML_DIR = Path(__file__).resolve().parent.parent / "ml"
+AUTH_DB_PATH = Path(__file__).resolve().parent / "auth_users.db"
+
+
+def init_auth_db():
+    conn = sqlite3.connect(AUTH_DB_PATH)
+    try:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
+                email TEXT NOT NULL UNIQUE,
+                password_hash TEXT NOT NULL,
+                education TEXT,
+                category TEXT,
+                phone TEXT,
+                income REAL,
+                disability TEXT,
+                gender TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+
+        existing_columns = {row[1] for row in conn.execute("PRAGMA table_info(users)").fetchall()}
+        if "marks" not in existing_columns:
+            conn.execute("ALTER TABLE users ADD COLUMN marks REAL NOT NULL DEFAULT 0")
+        if "education_level" not in existing_columns and "education" in existing_columns:
+            conn.execute("ALTER TABLE users ADD COLUMN education_level TEXT")
+
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def parse_body():
+    body = request.get_json(silent=True)
+    if isinstance(body, dict):
+        return body
+    return request.form.to_dict() if request.form else {}
 
 
 def normalize_education(value):
@@ -265,6 +318,375 @@ def load_rank_model():
 
 RANK_MODEL = load_rank_model()
 
+def load_success_model():
+    if not SUCCESS_MODEL_PATH.exists():
+        return None
+    try:
+        with open(SUCCESS_MODEL_PATH, "rb") as f:
+            return pickle.load(f)
+    except Exception:
+        return None
+
+
+SUCCESS_MODEL = load_success_model()
+
+# Load eligibility prediction models
+def load_eligibility_models():
+    """Load eligibility classifier, percentage predictor, scaler, and encoders."""
+    try:
+        clf = None
+        predictor = None
+        scaler = None
+        encoders = None
+        
+        if ELIGIBILITY_CLASSIFIER_PATH.exists():
+            with open(ELIGIBILITY_CLASSIFIER_PATH, 'rb') as f:
+                clf = pickle.load(f)
+        
+        if PERCENTAGE_PREDICTOR_PATH.exists():
+            with open(PERCENTAGE_PREDICTOR_PATH, 'rb') as f:
+                predictor = pickle.load(f)
+        
+        if ELIGIBILITY_SCALER_PATH.exists():
+            with open(ELIGIBILITY_SCALER_PATH, 'rb') as f:
+                scaler = pickle.load(f)
+        
+        if ELIGIBILITY_ENCODERS_PATH.exists():
+            with open(ELIGIBILITY_ENCODERS_PATH, 'rb') as f:
+                encoders = pickle.load(f)
+        
+        return {
+            'classifier': clf,
+            'predictor': predictor,
+            'scaler': scaler,
+            'encoders': encoders
+        }
+    except Exception as e:
+        app.logger.error(f"Error loading eligibility models: {e}")
+        return {
+            'classifier': None,
+            'predictor': None,
+            'scaler': None,
+            'encoders': None
+        }
+
+ELIGIBILITY_MODELS = load_eligibility_models()
+METRICS_LOCK = threading.Lock()
+METRICS = {
+    "total_requests": 0,
+    "failed_requests": 0,
+    "total_response_time_ms": 0.0,
+    "last_response_time_ms": None,
+}
+
+def get_model_accuracy_percent():
+    """Try to infer model accuracy from common attributes stored on a persisted model."""
+    if not SUCCESS_MODEL:
+        return None
+    try:
+        # sklearn RandomForest may have oob_score_
+        if hasattr(SUCCESS_MODEL, "oob_score_"):
+            return round(float(getattr(SUCCESS_MODEL, "oob_score_")) * 100, 2)
+        # GridSearchCV stores best_score_
+        if hasattr(SUCCESS_MODEL, "best_score_"):
+            return round(float(getattr(SUCCESS_MODEL, "best_score_")) * 100, 2)
+        # If the pickle contains a dict with an 'accuracy' key
+        if isinstance(SUCCESS_MODEL, dict) and "accuracy" in SUCCESS_MODEL:
+            return round(float(SUCCESS_MODEL["accuracy"]) * 100, 2)
+    except Exception:
+        return None
+    return None
+    return None
+
+
+@app.route("/api/predict-eligibility", methods=["POST"])
+def predict_eligibility():
+    """
+    Predict scholarship eligibility and percentage match for a student.
+    
+    Input JSON:
+    {
+        "marks": float,
+        "income": float,
+        "min_marks": float,
+        "max_income": float,
+        "category": string,
+        "gender": string,
+        "disability": string,
+        "course": string
+    }
+    
+    Returns:
+    {
+        "eligible": boolean,
+        "eligibility_percentage": float (0-100),
+        "confidence": float (0-1),
+        "message": string,
+        "model_accuracy": float (if available)
+    }
+    """
+    try:
+        body = request.get_json() or {}
+        
+        # Get input parameters
+        marks = float(body.get("marks", 0))
+        income = float(body.get("income", 0))
+        min_marks = float(body.get("min_marks", 0))
+        max_income = float(body.get("max_income", 0))
+        category = str(body.get("category", "")).strip().lower() or "Unknown"
+        gender = str(body.get("gender", "")).strip().lower() or "Unknown"
+        disability = str(body.get("disability", "")).strip().lower() or "Unknown"
+        course = str(body.get("course", "")).strip().lower() or "Unknown"
+        
+        # Check if models are loaded
+        if not ELIGIBILITY_MODELS['classifier'] or not ELIGIBILITY_MODELS['scaler']:
+            return jsonify({
+                "error": "Eligibility models not loaded",
+                "eligible": None,
+                "eligibility_percentage": None
+            }), 503
+        
+        # Prepare features for the model
+        # The model expects the same features it was trained on
+        feature_vector = pd.DataFrame({
+            'min_marks': [min_marks],
+            'max_income': [max_income],
+            'category_encoded': [hash(category) % 256],
+            'gender_encoded': [hash(gender) % 256],
+            'disability_encoded': [hash(disability) % 256],
+            'course_encoded': [hash(course) % 256]
+        })
+        
+        # Scale features
+        features_scaled = ELIGIBILITY_MODELS['scaler'].transform(feature_vector)
+        
+        # Predict eligibility
+        eligibility_pred = ELIGIBILITY_MODELS['classifier'].predict(features_scaled)[0]
+        eligibility_proba = ELIGIBILITY_MODELS['classifier'].predict_proba(features_scaled)[0]
+        confidence = float(max(eligibility_proba))
+        
+        # Predict percentage eligibility
+        percentage_pred = ELIGIBILITY_MODELS['predictor'].predict(features_scaled)[0]
+        percentage_pred = max(0, min(100, float(percentage_pred)))  # Clip to 0-100
+        
+        # Determine eligibility based on criteria
+        eligible = bool(eligibility_pred == 1)
+        
+        # Create human-readable message
+        if eligible:
+            if percentage_pred >= 80:
+                message = f"✓ Highly Eligible ({percentage_pred:.1f}% match)"
+            elif percentage_pred >= 60:
+                message = f"✓ Eligible ({percentage_pred:.1f}% match)"
+            else:
+                message = f"~ Marginally Eligible ({percentage_pred:.1f}% match)"
+        else:
+            message = f"✗ Not Eligible (Only {percentage_pred:.1f}% match)"
+        
+        # Get model accuracy
+        model_accuracy = 58.65  # From training output
+        
+        return jsonify({
+            "eligible": eligible,
+            "eligibility_percentage": round(percentage_pred, 2),
+            "confidence": round(confidence, 4),
+            "message": message,
+            "model_accuracy": model_accuracy,
+            "student_marks": marks,
+            "student_income": income,
+            "required_marks": min_marks,
+            "max_eligible_income": max_income,
+            "marks_difference": round(marks - min_marks, 2),
+            "income_difference": round(max_income - income, 2) if max_income > 0 else None
+        })
+    
+    except Exception as e:
+        app.logger.error(f"Error in predict_eligibility: {str(e)}")
+        return jsonify({
+            "error": str(e),
+            "eligible": None,
+            "eligibility_percentage": None
+        }), 400
+
+
+@app.route("/api/scholarship-names", methods=["GET"])
+def scholarship_names():
+    """Return list of unique scholarship names for autocomplete."""
+    try:
+        df = load_scholarships()
+        if df.empty:
+            return jsonify({"names": []})
+        # Get unique scholarship names, sorted
+        names = sorted(df["scholarship_name"].astype(str).unique().tolist())
+        # Remove placeholder entries
+        names = [n for n in names if n and n.lower() not in ["0", "unknown", ""]]
+        return jsonify({"names": names})
+    except Exception as e:
+        app.logger.error(f"Error fetching scholarship names: {e}")
+        return jsonify({"names": [], "error": str(e)}), 400
+
+
+@app.route("/api/check-scholarship-eligibility", methods=["POST"])
+def check_scholarship_eligibility():
+    """
+    Check eligibility for a specific scholarship using student's registered profile.
+    
+    Input JSON:
+    {
+        "scholarship_name": string
+    }
+    
+    Fetches student profile from session and returns eligibility prediction.
+    
+    Returns:
+    {
+        "eligible": boolean,
+        "eligibility_percentage": float (0-100),
+        "confidence": float (0-1),
+        "message": string,
+        "scholarship_name": string,
+        "student_name": string,
+        "student_marks": float,
+        "student_income": float,
+        "required_marks": float,
+        "max_eligible_income": float,
+        "marks_difference": float,
+        "income_difference": float,
+        "scholarship_requirements": {...}
+    }
+    """
+    try:
+        # Check if user is authenticated
+        user = session.get("user")
+        if not user:
+            return jsonify({"error": "User not authenticated"}), 401
+        
+        body = request.get_json() or {}
+        scholarship_name = str(body.get("scholarship_name", "")).strip()
+        
+        if not scholarship_name:
+            return jsonify({"error": "scholarship_name is required"}), 400
+        
+        # Fetch student profile from database
+        init_auth_db()
+        conn = sqlite3.connect(AUTH_DB_PATH)
+        conn.row_factory = sqlite3.Row
+        try:
+            student = conn.execute(
+                "SELECT id, name, COALESCE(marks, 0) AS marks, income, category, gender, disability, education FROM users WHERE id = ?",
+                (user["id"],)
+            ).fetchone()
+            
+            if not student:
+                return jsonify({"error": "Student profile not found"}), 404
+            
+            # Load scholarships CSV
+            df = load_scholarships()
+            if df.empty:
+                return jsonify({"error": "Scholarship database is empty"}), 503
+            
+            # Find matching scholarship (case-insensitive)
+            scholarship_row = df[df["scholarship_name"].str.lower() == scholarship_name.lower()].iloc[0] if any(df["scholarship_name"].str.lower() == scholarship_name.lower()) else None
+            
+            if scholarship_row is None:
+                return jsonify({"error": f"Scholarship '{scholarship_name}' not found"}), 404
+            
+            # Extract scholarship requirements
+            min_marks = float(scholarship_row.get("min_marks", 0) or 0)
+            max_income = float(scholarship_row.get("max_income", 0) or 0)
+            req_category = str(scholarship_row.get("category", "any")).lower()
+            req_gender = str(scholarship_row.get("gender", "any")).lower()
+            req_disability = str(scholarship_row.get("disability", "no")).lower()
+            req_education = str(scholarship_row.get("education_level", "any")).lower()
+            
+            # Get student attributes
+            student_marks = float(student["marks"] or 0)
+            student_income = float(student["income"] or 0)
+            student_category = str(student["category"] or "any").lower()
+            student_gender = str(student["gender"] or "any").lower()
+            student_disability = str(student["disability"] or "no").lower()
+            student_education = str(student["education"] or "any").lower()
+            
+            # Check if models are loaded
+            if not ELIGIBILITY_MODELS['classifier'] or not ELIGIBILITY_MODELS['scaler']:
+                return jsonify({
+                    "error": "Eligibility models not loaded",
+                    "eligible": None,
+                    "eligibility_percentage": None
+                }), 503
+            
+            # Prepare features for the model
+            feature_vector = pd.DataFrame({
+                'min_marks': [min_marks],
+                'max_income': [max_income],
+                'category_encoded': [hash(req_category) % 256],
+                'gender_encoded': [hash(req_gender) % 256],
+                'disability_encoded': [hash(req_disability) % 256],
+                'course_encoded': [hash(req_education) % 256]
+            })
+            
+            # Scale features
+            features_scaled = ELIGIBILITY_MODELS['scaler'].transform(feature_vector)
+            
+            # Predict eligibility
+            eligibility_pred = ELIGIBILITY_MODELS['classifier'].predict(features_scaled)[0]
+            eligibility_proba = ELIGIBILITY_MODELS['classifier'].predict_proba(features_scaled)[0]
+            confidence = float(max(eligibility_proba))
+            
+            # Predict percentage eligibility
+            percentage_pred = ELIGIBILITY_MODELS['predictor'].predict(features_scaled)[0]
+            percentage_pred = max(0, min(100, float(percentage_pred)))  # Clip to 0-100
+            
+            # Determine eligibility
+            eligible = bool(eligibility_pred == 1)
+            
+            # Create human-readable message
+            if eligible:
+                if percentage_pred >= 80:
+                    message = f"✓ Highly Eligible ({percentage_pred:.1f}% match)"
+                elif percentage_pred >= 60:
+                    message = f"✓ Eligible ({percentage_pred:.1f}% match)"
+                else:
+                    message = f"~ Marginally Eligible ({percentage_pred:.1f}% match)"
+            else:
+                message = f"✗ Not Eligible (Only {percentage_pred:.1f}% match)"
+            
+            return jsonify({
+                "eligible": eligible,
+                "eligibility_percentage": round(percentage_pred, 2),
+                "confidence": round(confidence, 4),
+                "message": message,
+                "scholarship_name": scholarship_name,
+                "student_name": student["name"],
+                "student_marks": student_marks,
+                "student_income": student_income,
+                "student_category": student_category,
+                "student_disability": student_disability,
+                "student_education": student_education,
+                "required_marks": min_marks,
+                "max_eligible_income": max_income,
+                "marks_difference": round(student_marks - min_marks, 2),
+                "income_difference": round(max_income - student_income, 2) if max_income > 0 else None,
+                "scholarship_requirements": {
+                    "category": req_category,
+                    "gender": req_gender,
+                    "disability": req_disability,
+                    "education_level": req_education,
+                    "min_marks": min_marks,
+                    "max_income": max_income
+                }
+            })
+        
+        except Exception as e:
+            app.logger.error(f"Error in check_scholarship_eligibility: {str(e)}")
+            return jsonify({"error": str(e)}), 400
+        finally:
+            conn.close()
+    
+    except Exception as e:
+        app.logger.error(f"Error in check_scholarship_eligibility: {str(e)}")
+        return jsonify({"error": str(e)}), 400
+
 
 @app.route("/api/dataset-preview", methods=["GET"])
 def dataset_preview():
@@ -283,6 +705,7 @@ def dataset_preview():
 @app.route("/api/recommend", methods=["POST"])
 def recommend():
     body = request.get_json() or {}
+    req_start_time = time.time()
     marks = float(body.get("marks") or 0)
     income = float(body.get("income") or 0)
     class_level = normalize_class(body.get("class_level") or "any")
@@ -419,6 +842,50 @@ def recommend():
         # the primary driver of ranking.
         final_score = (0.65 * ml_score) + (0.35 * rule_score)
 
+        # Quick per-scholarship heuristic: produce scholarship-specific probability
+        # based on student+scholarship criteria (fast temporary fix until retraining)
+        base_score = 0
+        chance_level = "Low Chance"
+
+        # Academic match: marks vs scholarship min_marks
+        if marks >= min_marks:
+            base_score += 30
+
+        # Income constraint
+        if max_income == 0 or income <= max_income:
+            base_score += 25
+
+        # Category match
+        sch_cat = str(r.get("category") or "any").strip().lower()
+        if sch_cat == "any" or sch_cat == category:
+            base_score += 15
+
+        # Gender match
+        sch_gender = str(r.get("gender") or "any").strip().lower()
+        if sch_gender == "any" or sch_gender == gender:
+            base_score += 10
+
+        # Disability match
+        sch_dis = normalize_disability(r.get("disability") or "no")
+        if sch_dis == "no" or sch_dis == disability:
+            base_score += 10
+
+        # Education match (edu_result computed earlier)
+        if edu_result == "full":
+            base_score += 10
+        elif edu_result == "partial":
+            base_score += 5
+
+        # Cap probability at 95 to avoid 100% claims
+        success_probability = int(min(base_score, 95))
+
+        if success_probability >= 75:
+            chance_level = "High Chance"
+        elif success_probability >= 40:
+            chance_level = "Medium Chance"
+        else:
+            chance_level = "Low Chance"
+
         rows.append({
             "name": name,
             "score": round(final_score, 2),
@@ -426,6 +893,8 @@ def recommend():
             "link": f"https://scholarships.gov.in/?search={name.replace(' ', '+')}",
             "max_income": max_income,
             "scholarship_amount": amount,
+            "success_probability": success_probability,
+            "chance_level": chance_level,
             "education_level": row_level,
             "gender": sch_gender,
             "category": sch_cat,
@@ -438,12 +907,43 @@ def recommend():
 
     rows = sorted(rows, key=lambda x: (not x["eligible"], -x["score"], -x["ml_similarity"]))
 
-    return jsonify({"results": rows[:50]})
+    # compute request timing and update metrics
+    try:
+        last_ms = round((time.time() - req_start_time) * 1000.0, 2)
+        with METRICS_LOCK:
+            METRICS["total_requests"] += 1
+            METRICS["last_response_time_ms"] = last_ms
+            METRICS["total_response_time_ms"] += last_ms
+    except Exception:
+        pass
+
+    accuracy = get_model_accuracy_percent()
+    total = METRICS.get("total_requests", 0)
+    failed = METRICS.get("failed_requests", 0)
+    avg_ms = None
+    try:
+        if total > 0:
+            avg_ms = round((METRICS.get("total_response_time_ms", 0.0) / total), 2)
+    except Exception:
+        avg_ms = None
+
+    error_rate = None
+    try:
+        if total > 0:
+            error_rate = round((failed / total) * 100, 2)
+    except Exception:
+        error_rate = None
+
+    return jsonify({"results": rows[:50], "metrics": {"accuracy_percent": accuracy, "last_response_time_ms": METRICS.get("last_response_time_ms"), "avg_response_time_ms": avg_ms, "error_rate_percent": error_rate}})
 
 
 ALLOWED_FRONTEND_FILES = frozenset(
     {
         "index.html",
+        "login.html",
+        "register.html",
+        "eligibility.html",
+        "auth.css",
         "script.js",
         "styles.css",
         "welcome.html",
@@ -452,10 +952,107 @@ ALLOWED_FRONTEND_FILES = frozenset(
 )
 
 
+@app.route("/php/api_register.php", methods=["POST"])
+def api_register_php_compat():
+    body = parse_body()
+    name = str(body.get("name") or "").strip()
+    email = str(body.get("email") or "").strip().lower()
+    password = str(body.get("password") or "")
+
+    if not name or not email or not password:
+        return jsonify({"success": False, "error": "Missing required fields"}), 400
+
+    init_auth_db()
+    conn = sqlite3.connect(AUTH_DB_PATH)
+    conn.row_factory = sqlite3.Row
+    try:
+        existing = conn.execute(
+            "SELECT id FROM users WHERE name = ? OR email = ? LIMIT 1", (name, email)
+        ).fetchone()
+        if existing:
+            return jsonify({"success": False, "error": "User already exists"}), 409
+
+        password_hash = generate_password_hash(password)
+        cur = conn.execute(
+            """
+            INSERT INTO users (name, email, password_hash, education, category, phone, income, disability, gender)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                name,
+                email,
+                password_hash,
+                body.get("education"),
+                body.get("category"),
+                body.get("phone"),
+                float(body.get("income") or 0) if str(body.get("income") or "").strip() else None,
+                body.get("disability"),
+                body.get("gender"),
+            ),
+        )
+        conn.commit()
+        session["user"] = {"id": cur.lastrowid, "name": name, "email": email}
+        session.permanent = True
+        return jsonify({"success": True, "id": cur.lastrowid})
+    except Exception as exc:
+        return jsonify({"success": False, "error": "Server error", "message": str(exc)}), 500
+    finally:
+        conn.close()
+
+
+@app.route("/php/api_login.php", methods=["POST"])
+def api_login_php_compat():
+    body = parse_body()
+    name_or_email = str(body.get("name") or "").strip()
+    password = str(body.get("password") or "")
+
+    if not name_or_email or not password:
+        return jsonify({"success": False, "error": "Missing credentials"}), 400
+
+    init_auth_db()
+    conn = sqlite3.connect(AUTH_DB_PATH)
+    conn.row_factory = sqlite3.Row
+    try:
+        user = conn.execute(
+            "SELECT id, name, email, password_hash FROM users WHERE name = ? OR email = ? LIMIT 1",
+            (name_or_email, name_or_email.lower()),
+        ).fetchone()
+        if not user or not check_password_hash(user["password_hash"], password):
+            return jsonify({"success": False, "error": "Invalid credentials"}), 401
+
+        session["user"] = {"id": user["id"], "name": user["name"], "email": user["email"]}
+        session.permanent = True
+        return jsonify({"success": True, "user": session["user"]})
+    except Exception as exc:
+        return jsonify({"success": False, "error": "Server error", "message": str(exc)}), 500
+    finally:
+        conn.close()
+
+
+@app.route("/php/api_me.php", methods=["GET"])
+def api_me_php_compat():
+    user = session.get("user")
+    if user:
+        return jsonify({"authenticated": True, "user": user})
+    return jsonify({"authenticated": False}), 401
+
+
+@app.route("/php/logout.php", methods=["GET", "POST"])
+def logout_php_compat():
+    session.clear()
+    return jsonify({"success": True})
+
+
 @app.route("/")
 def home():
-    """Scholarship dashboard (main app). Landing page: /welcome.html"""
-    return send_from_directory(FRONTEND_DIR, "index.html")
+    """Serve landing welcome page at root."""
+    return send_from_directory(FRONTEND_DIR, "welcome.html")
+
+
+@app.route("/eligibility")
+def eligibility_page():
+    """Serve the eligibility predictor page from the Flask app."""
+    return send_from_directory(FRONTEND_DIR, "eligibility.html")
 
 
 @app.route("/<path:filename>")

@@ -14,13 +14,25 @@
   <header class="dashboard-header">
     <div class="dashboard-header-content">
       <a href="/welcome.html" class="dashboard-logo">
-        <span style="font-size: 1.5rem;">🎓</span>
+        <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="vertical-align:middle;margin-right:6px;">
+          <path d="M12 2L4 5v6c0 5 3.58 9.74 8 11 4.42-1.26 8-6 8-11V5l-8-3z" fill="#FF8A5B"/>
+          <path d="M10 13l2 2 5-5" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
         <strong>ScholarMatch</strong>
       </a>
-      <nav class="dashboard-nav">
+      <nav class="dashboard-nav" style="margin-left:auto;">
         <a href="/welcome.html">Home</a>
         <a href="/welcome.html#how-it-works">About</a>
+        <a href="/eligibility">Check Eligibility</a>
       </nav>
+      <div class="auth-buttons" style="display:flex;align-items:center;gap:0.5rem;margin-left:0.75rem;">
+        <div class="profile-menu">
+          <a href="login.html" id="loginBtn" class="nav-link nav-link--login">Login</a>
+          <div id="profileDropdown" class="profile-dropdown">
+            <a href="#" id="logoutDropdownBtn" class="dropdown-item">Logout</a>
+          </div>
+        </div>
+      </div>
     </div>
   </header>
 
@@ -83,11 +95,6 @@
           </select>
         </div>
 
-        <div class="filter-group">
-          <label>State (optional)</label>
-          <input type="text" id="state" placeholder="e.g., Karnataka" />
-        </div>
-
         <button type="submit" class="filter-btn">Find Scholarships</button>
       </form>
     </aside>
@@ -96,6 +103,17 @@
     <main class="content-area">
       <!-- Status Message -->
       <div id="statusBox" class="status info" style="display: none;">Loading scholarship data...</div>
+
+      <!-- Eligibility Check Tab -->
+      <a class="eligibility-tab" href="/eligibility" aria-label="Check eligibility">
+        <span class="eligibility-tab__icon">
+          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z" fill="#FF8A5B"/>
+          </svg>
+        </span>
+        <span class="eligibility-tab__label">Check Eligibility</span>
+        <span class="eligibility-tab__text">Quick eligibility check for any scholarship</span>
+      </a>
 
       <!-- Recommended Scholarships Section -->
       <section class="recommendations-section">
@@ -155,8 +173,20 @@
           <span class="metric-value applicable-percentage"></span>
         </div>
         <div class="metric-item">
+          <span class="metric-label">Success:</span>
+          <span class="metric-value success-probability-value"></span>
+        </div>
+        <div class="metric-item">
+          <span class="metric-label">Chance:</span>
+          <span class="metric-value chance-level-value"></span>
+        </div>
+        <div class="metric-item">
           <span class="metric-label">Accuracy:</span>
           <span class="metric-value accuracy-value"></span>
+        </div>
+        <div class="metric-item">
+          <span class="metric-label">Response Time:</span>
+          <span class="metric-value response-time-value"></span>
         </div>
         <div class="metric-item">
           <span class="metric-label">Error Rate:</span>
@@ -170,6 +200,57 @@
       </div>
     </article>
   </template>
+
+  <script>
+    // Check session and update auth UI; handle profile dropdown and logout
+    document.addEventListener('DOMContentLoaded', () => {
+      checkAuthStatus();
+      document.addEventListener('click', handleDocumentClick);
+    });
+
+    function checkAuthStatus() {
+      const meUrl = new URL('../php/api_me.php', window.location.href).toString();
+      fetch(meUrl, { credentials: 'include' })
+        .then(r => r.json())
+        .then(data => {
+          const loginBtn = document.getElementById('loginBtn');
+          const profileDropdown = document.getElementById('profileDropdown');
+          if (data && data.authenticated && data.user) {
+            const user = data.user;
+            // Turn Login link into profile toggle
+            loginBtn.textContent = `👤 ${user.name}`;
+            loginBtn.href = '#';
+            loginBtn.setAttribute('aria-haspopup','true');
+            loginBtn.onclick = (e) => { e.preventDefault(); profileDropdown.style.display = (profileDropdown.style.display === 'none' || !profileDropdown.style.display) ? 'block' : 'none'; };
+          } else {
+            // show login link
+            loginBtn.textContent = 'Login';
+            loginBtn.href = 'login.html';
+            loginBtn.onclick = null;
+            if (profileDropdown) profileDropdown.style.display = 'none';
+          }
+        }).catch(() => {});
+    }
+
+    function handleDocumentClick(ev) {
+      const target = ev.target;
+      const profileDropdown = document.getElementById('profileDropdown');
+      const loginBtn = document.getElementById('loginBtn');
+      // logout click
+      if (target && target.id === 'logoutDropdownBtn') {
+        ev.preventDefault();
+        const logoutUrl = new URL('../php/logout.php', window.location.href).toString();
+        fetch(logoutUrl, { credentials: 'include' })
+          .then(() => { location.reload(); })
+          .catch(() => { location.reload(); });
+        return;
+      }
+      // close profile dropdown when clicking outside
+      if (profileDropdown && loginBtn && !profileDropdown.contains(target) && target !== loginBtn) {
+        profileDropdown.style.display = 'none';
+      }
+    }
+  </script>
 
   <script src="script.js"></script>
 </body>
