@@ -127,7 +127,7 @@
     .check-btn {
       width: 100%;
       padding: 1rem;
-      background: var(--primary);
+      background: linear-gradient(135deg, var(--primary) 0%, #FF6B3D 100%);
       color: white;
       border: none;
       border-radius: 8px;
@@ -136,6 +136,16 @@
       cursor: pointer;
       transition: all 0.3s ease;
       font-family: 'Poppins', sans-serif;
+      box-shadow: 0 4px 15px rgba(255, 138, 91, 0.3);
+    }
+
+    @keyframes pulse {
+      0%, 100% {
+        box-shadow: 0 4px 15px rgba(255, 138, 91, 0.3);
+      }
+      50% {
+        box-shadow: 0 4px 25px rgba(255, 138, 91, 0.5);
+      }
     }
 
     .check-btn:hover:not(:disabled) {
@@ -395,14 +405,25 @@
   <!-- Dashboard Header -->
   <header class="dashboard-header">
     <div class="dashboard-header-content">
-      <a href="/" class="dashboard-logo">
-        <span style="font-size: 1.5rem;">🎓</span>
-        <strong>ScholarMatch</strong>
+      <a href="/" class="dashboard-logo" style="display: flex; align-items: center; gap: 0.5rem; text-decoration: none;">
+        <svg width="40" height="40" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <!-- Graduation cap mortarboard -->
+          <polygon points="4,12 16,6 28,12 16,18" fill="#000000" stroke="#000000" stroke-width="1"/>
+          <!-- Cap front (front part of mortarboard) -->
+          <polygon points="6,12 16,8 26,12" fill="#0a0a0a" stroke="#000000" stroke-width="0.5"/>
+          <!-- Cap sides shadow -->
+          <polygon points="4,12 10,16 16,18 10,14" fill="#1a1a1a" opacity="0.7"/>
+          <polygon points="28,12 22,16 16,18 22,14" fill="#1a1a1a" opacity="0.7"/>
+          <!-- Tassel string -->
+          <line x1="16" y1="18" x2="16" y2="26" stroke="#000000" stroke-width="1.5"/>
+          <!-- Tassel bulb -->
+          <circle cx="16" cy="27" r="2" fill="#000000"/>
+        </svg>
+        <strong style="background: linear-gradient(135deg, #FF8A5B 0%, #00B4A6 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-size: 1.1rem;">ScholarMatch</strong>
       </a>
       <nav class="dashboard-nav" style="margin-left:auto;">
         <a href="/">Home</a>
         <a href="/index.html">Find Scholarships</a>
-        <a href="/eligibility" style="color: var(--primary); border-bottom: 2px solid var(--primary);">Check Eligibility</a>
       </nav>
       <div class="auth-buttons" style="display:flex;align-items:center;gap:0.5rem;margin-left:0.75rem;">
         <div class="profile-menu">
@@ -420,9 +441,27 @@
       <!-- Hero Section -->
       <div class="eligibility-hero">
         <h1>
-          <svg aria-hidden="true" width="36" height="36" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="vertical-align:middle;margin-right:8px;">
-            <path d="M12 2L4 5v6c0 5 3.58 9.74 8 11 4.42-1.26 8-6 8-11V5l-8-3z" fill="#00B4A6"/>
-            <path d="M9.5 12.5l1.75 1.75L15.5 10" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+          <svg aria-hidden="true" width="36" height="36" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" style="vertical-align:middle;margin-right:12px;display:inline-block;">
+            <!-- Gradient circle background -->
+            <circle cx="16" cy="16" r="15" fill="url(#grad2)" opacity="0.2"/>
+            <!-- Graduation cap -->
+            <path d="M8 12L16 8L24 12V14L16 18L8 14V12Z" fill="#FF8A5B" stroke="#FF6B35" stroke-width="1.5" stroke-linejoin="round"/>
+            <!-- Cap tassel -->
+            <path d="M16 18V22" stroke="#FF6B35" stroke-width="1.5" stroke-linecap="round"/>
+            <circle cx="16" cy="22.5" r="1.5" fill="#FF6B35"/>
+            <!-- Sparkle effects -->
+            <circle cx="10" cy="10" r="1.5" fill="#00B4A6" opacity="0.8"/>
+            <circle cx="22" cy="10" r="1.5" fill="#00B4A6" opacity="0.8"/>
+            <circle cx="16" cy="6" r="1" fill="#FFB08A" opacity="0.6"/>
+            <circle cx="24" cy="16" r="1" fill="#FFB08A" opacity="0.6"/>
+            <!-- Success checkmark -->
+            <path d="M12 22C12 26 16 28 20 26" stroke="#00B4A6" stroke-width="2" stroke-linecap="round" fill="none"/>
+            <defs>
+              <linearGradient id="grad2" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" style="stop-color:#FF8A5B;stop-opacity:1" />
+                <stop offset="100%" style="stop-color:#00B4A6;stop-opacity:1" />
+              </linearGradient>
+            </defs>
           </svg>
           Check Your Eligibility
         </h1>
@@ -745,9 +784,12 @@
     function setRecommendationButton(scholarshipName) {
       const btn = document.getElementById('checkBtn');
       if (!btn) return;
-      btn.textContent = 'Find Scholarship';
+      btn.innerHTML = '<span style="display:flex;align-items:center;justify-content:center;gap:0.5rem;">🔍 Find More Scholarships</span>';
       btn.type = 'button';
       btn.setAttribute('data-state', 'find');
+      btn.style.background = 'linear-gradient(135deg, #00B4A6 0%, #008B7F 100%)';
+      btn.style.boxShadow = '0 4px 15px rgba(0, 180, 166, 0.3)';
+      btn.style.animation = 'pulse 2s infinite';
       btn.onclick = () => {
         // Navigate to recommendations page
         const target = 'index.html';

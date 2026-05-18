@@ -22,11 +22,20 @@
     <div class="nav-container" style="display:flex;align-items:center;justify-content:space-between;">
       <div class="nav-left">
         <div class="logo">
-          <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="vertical-align:middle;margin-right:8px;">
-            <path d="M12 2L4 5v6c0 5 3.58 9.74 8 11 4.42-1.26 8-6 8-11V5l-8-3z" fill="#FF8A5B"/>
-            <path d="M10 13l2 2 5-5" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <svg aria-hidden="true" width="40" height="40" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <!-- Graduation cap mortarboard -->
+            <polygon points="4,12 16,6 28,12 16,18" fill="#000000" stroke="#000000" stroke-width="1"/>
+            <!-- Cap front (front part of mortarboard) -->
+            <polygon points="6,12 16,8 26,12" fill="#0a0a0a" stroke="#000000" stroke-width="0.5"/>
+            <!-- Cap sides shadow -->
+            <polygon points="4,12 10,16 16,18 10,14" fill="#1a1a1a" opacity="0.7"/>
+            <polygon points="28,12 22,16 16,18 22,14" fill="#1a1a1a" opacity="0.7"/>
+            <!-- Tassel string -->
+            <line x1="16" y1="18" x2="16" y2="26" stroke="#000000" stroke-width="1.5"/>
+            <!-- Tassel bulb -->
+            <circle cx="16" cy="27" r="2" fill="#000000"/>
           </svg>
-          <h1 class="logo-text">ScholarMatch</h1>
+          <h1 class="logo-text" style="background: linear-gradient(135deg, #FF8A5B 0%, #00B4A6 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">ScholarMatch</h1>
         </div>
       </div>
       <div class="auth-buttons" style="margin-left:auto;display:flex;align-items:center;gap:0.5rem;">
