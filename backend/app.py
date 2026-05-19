@@ -614,6 +614,32 @@ def check_scholarship_eligibility():
                     "eligible": None,
                     "eligibility_percentage": None
                 }), 503
+
+            # If scholarship explicitly requires disability and student is not disabled,
+            # do not run the ML model — return immediate Not Eligible (0%).
+            # This mirrors the behavior in /api/recommend where disability-only
+            # scholarships are skipped for non-disabled users.
+            if student_disability == "no" and req_disability in ("yes", "only", "required"):
+                return jsonify({
+                    "eligible": False,
+                    "eligibility_percentage": 0.0,
+                    "confidence": 0.0,
+                    "message": "✗ Not Eligible (scholarship requires disability)",
+                    "scholarship_name": scholarship_name,
+                    "student_name": student["name"],
+                    "student_marks": student_marks,
+                    "student_income": student_income,
+                    "required_marks": min_marks,
+                    "max_eligible_income": max_income,
+                    "marks_difference": round(student_marks - min_marks, 2),
+                    "income_difference": round(max_income - student_income, 2) if max_income > 0 else None,
+                    "scholarship_requirements": {
+                        "disability": req_disability,
+                        "category": req_category,
+                        "gender": req_gender,
+                        "education_level": req_education
+                    }
+                }), 200
             
             # Prepare features for the model
             feature_vector = pd.DataFrame({
