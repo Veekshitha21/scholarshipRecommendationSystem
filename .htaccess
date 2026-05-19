@@ -4,6 +4,5 @@ RewriteEngine On
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 
-# Route PHP API calls
-RewriteRule ^php/(.*)$ php/$1 [L]
-RewriteRule ^frontend/(.*)$ frontend/$1 [L]
+# Route all requests to php/index.php (the main router)
+RewriteRule ^(.*)$ php/index.php [L]
