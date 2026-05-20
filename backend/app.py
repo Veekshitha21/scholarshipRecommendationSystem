@@ -194,6 +194,28 @@ def normalize_disability(value):
     return "no"
 
 
+def scholarship_requires_disability_support(value):
+    text = re.sub(r"[^a-z0-9 ]+", " ", str(value or "").strip().lower())
+    text = re.sub(r"\s+", " ", text).strip()
+    if not text:
+        return False
+    if text in {"no", "any"}:
+        return False
+    required_tokens = {
+        "yes",
+        "required",
+        "only",
+        "only for pwd",
+        "pwd",
+        "disabled",
+        "persons with disability",
+        "person with disability",
+        "person with disabilities",
+        "for pwd",
+    }
+    return text in required_tokens or any(token in text for token in ("pwd", "disabled", "disability", "required", "only"))
+
+
 def build_user_rank_feature(user):
     return (
         f"cat_{user['category']} gen_{user['gender']} edu_{user['education']} "
@@ -529,14 +551,13 @@ def scholarship_names():
 @app.route("/api/check-scholarship-eligibility", methods=["POST"])
 def check_scholarship_eligibility():
     """
-    Check eligibility for a specific scholarship using student's registered profile.
+    Check eligibility for a specific scholarship using provided marks and student's profile.
     
     Input JSON:
     {
-        "scholarship_name": string
+        "scholarship_name": string (required),
+        "marks": float (required - previous year marks out of 100)
     }
-    
-    Fetches student profile from session and returns eligibility prediction.
     
     Returns:
     {
@@ -567,13 +588,25 @@ def check_scholarship_eligibility():
         if not scholarship_name:
             return jsonify({"error": "scholarship_name is required"}), 400
         
+        # Get marks from request body - REQUIRED
+        provided_marks = body.get("marks")
+        if provided_marks is None:
+            return jsonify({"error": "marks is required"}), 400
+        
+        try:
+            student_marks = float(provided_marks)
+            if student_marks < 0 or student_marks > 100:
+                return jsonify({"error": "Marks must be between 0 and 100"}), 400
+        except (ValueError, TypeError):
+            return jsonify({"error": "Invalid marks value - must be a number between 0 and 100"}), 400
+        
         # Fetch student profile from database
         init_auth_db()
         conn = sqlite3.connect(AUTH_DB_PATH)
         conn.row_factory = sqlite3.Row
         try:
             student = conn.execute(
-                "SELECT id, name, COALESCE(marks, 0) AS marks, income, category, gender, disability, education FROM users WHERE id = ?",
+                "SELECT id, name, COALESCE(income, 0) AS income, category, gender, disability, education FROM users WHERE id = ?",
                 (user["id"],)
             ).fetchone()
             
@@ -599,8 +632,7 @@ def check_scholarship_eligibility():
             req_disability = str(scholarship_row.get("disability", "no")).lower()
             req_education = str(scholarship_row.get("education_level", "any")).lower()
             
-            # Get student attributes
-            student_marks = float(student["marks"] or 0)
+            # Get student attributes from database
             student_income = float(student["income"] or 0)
             student_category = str(student["category"] or "any").lower()
             student_gender = str(student["gender"] or "any").lower()
@@ -619,7 +651,7 @@ def check_scholarship_eligibility():
             # do not run the ML model — return immediate Not Eligible (0%).
             # This mirrors the behavior in /api/recommend where disability-only
             # scholarships are skipped for non-disabled users.
-            if student_disability == "no" and req_disability in ("yes", "only", "required"):
+            if student_disability == "no" and scholarship_requires_disability_support(req_disability):
                 return jsonify({
                     "eligible": False,
                     "eligibility_percentage": 0.0,
@@ -641,15 +673,15 @@ def check_scholarship_eligibility():
                     }
                 }), 200
             
-            # Prepare features for the model
-            feature_vector = pd.DataFrame({
-                'min_marks': [min_marks],
-                'max_income': [max_income],
-                'category_encoded': [hash(req_category) % 256],
-                'gender_encoded': [hash(req_gender) % 256],
-                'disability_encoded': [hash(req_disability) % 256],
-                'course_encoded': [hash(req_education) % 256]
-            })
+            # Prepare features for the model that match training data
+            # The training model uses: marks_diff, income_margin, cat_match, gen_match, dis_match
+            marks_diff = student_marks - min_marks
+            income_margin = max(max_income - student_income, 0) if max_income > 0 else 0
+            cat_match = 1 if req_category in ['any', 'open', 'general'] or req_category == student_category else 0
+            gen_match = 1 if req_gender in ['any', 'both', 'all'] or req_gender == student_gender else 0
+            dis_match = 1 if not scholarship_requires_disability_support(req_disability) or student_disability == 'yes' else 0
+            
+            feature_vector = np.array([[marks_diff, income_margin, cat_match, gen_match, dis_match]])
             
             # Scale features
             features_scaled = ELIGIBILITY_MODELS['scaler'].transform(feature_vector)
@@ -659,8 +691,21 @@ def check_scholarship_eligibility():
             eligibility_proba = ELIGIBILITY_MODELS['classifier'].predict_proba(features_scaled)[0]
             confidence = float(max(eligibility_proba))
             
-            # Predict percentage eligibility
-            percentage_pred = ELIGIBILITY_MODELS['predictor'].predict(features_scaled)[0]
+            # Calculate eligibility percentage based on marks and other factors
+            # If marks are below minimum, lower the percentage
+            if student_marks < min_marks:
+                percentage_pred = (student_marks / max(min_marks, 1)) * 50  # Max 50% if marks insufficient
+            else:
+                # Marks are sufficient, calculate based on how much above minimum
+                marks_excess = min(student_marks - min_marks, 35)  # Up to 35% bonus from marks
+                percentage_pred = 65 + (marks_excess / 35) * 35  # 65% base + marks bonus
+            
+            # Adjust for income if applicable
+            if max_income > 0 and student_income <= max_income:
+                percentage_pred += 5
+            elif max_income > 0:
+                percentage_pred -= 10
+            
             percentage_pred = max(0, min(100, float(percentage_pred)))  # Clip to 0-100
             
             # Determine eligibility
@@ -819,9 +864,9 @@ def recommend():
 
         # disability (5 points)
         sch_dis = normalize_disability(r.get("disability") or "no")
-        # IMPORTANT: Non-disabled students should NOT get disability-only scholarships.
-        # Skip any scholarship that requires disability if user selected "no"
-        if disability == "no" and sch_dis == "yes":
+        # IMPORTANT: Non-disabled students should NOT get disability-required scholarships.
+        # Skip any scholarship that requires disability support if user selected "no"
+        if disability == "no" and scholarship_requires_disability_support(r.get("disability") or sch_dis):
             try:
                 app.logger.debug(f"Skipping {name} because scholarship requires disability but user has none")
             except Exception:

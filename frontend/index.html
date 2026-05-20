@@ -9,7 +9,31 @@
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css" />
 </head>
-<body>
+<body style="visibility:hidden;">
+  <script>
+    (async () => {
+      const endpoints = [
+        new URL('../php/api_me.php', window.location.href).toString(),
+        new URL('api_me_wrapper.php', window.location.href).toString()
+      ];
+
+      for (const endpoint of endpoints) {
+        try {
+          const response = await fetch(endpoint, { credentials: 'include' });
+          const data = await response.json();
+          if (data && data.authenticated) {
+            document.body.style.visibility = 'visible';
+            return;
+          }
+        } catch (error) {
+          // Try the next auth source.
+        }
+      }
+
+      window.location.replace('welcome.html');
+    })();
+    document.body.style.visibility = 'hidden';
+  </script>
   <!-- Dashboard Header -->
   <header class="dashboard-header">
     <div class="dashboard-header-content">

@@ -76,6 +76,26 @@ def normalize_disability(value):
     return "no"
 
 
+def scholarship_requires_disability_support(value):
+    text = str(value or "").strip().lower()
+    text = " ".join(text.split())
+    if not text or text in {"no", "any"}:
+        return False
+    required_tokens = {
+        "yes",
+        "required",
+        "only",
+        "only for pwd",
+        "pwd",
+        "disabled",
+        "persons with disability",
+        "person with disability",
+        "person with disabilities",
+        "for pwd",
+    }
+    return text in required_tokens or any(token in text for token in ("pwd", "disabled", "disability", "required", "only"))
+
+
 def normalize_name(value):
     return str(value or "").strip()
 
@@ -233,6 +253,8 @@ def build_feature(row):
     category = str(row.get("category") or "any").strip().lower() or "any"
     gender = str(row.get("gender") or "any").strip().lower() or "any"
     disability = str(row.get("disability") or "no").strip().lower() or "no"
+    if scholarship_requires_disability_support(disability):
+        disability = "yes"
     education = normalize_education(row.get("education_level") or "any")
     income = income_bucket(row.get("max_income") or 0)
     state = normalize_state(row.get("state") or "any")

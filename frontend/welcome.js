@@ -4,6 +4,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initAnimations();
   animateCounters();
   checkSession();
+  guardEligibilityLink();
 });
 
 function initAnimations() {
@@ -134,6 +135,28 @@ function showProfile(user) {
   });
   const dash = document.getElementById('goToDashboard');
   if (dash) dash.addEventListener('click', () => { window.location.href = 'index.html'; });
+}
+
+function guardEligibilityLink() {
+  const eligibilityLink = document.getElementById('eligibilityCta');
+  if (!eligibilityLink) return;
+
+  eligibilityLink.addEventListener('click', async (event) => {
+    event.preventDefault();
+
+    try {
+      const response = await fetch('../php/api_me.php', { credentials: 'include' });
+      const data = await response.json();
+      if (data && data.authenticated) {
+        window.location.href = eligibilityLink.getAttribute('href') || '/eligibility';
+        return;
+      }
+    } catch (error) {
+      // Fall through to login.
+    }
+
+    window.location.href = 'login.html?redirect=' + encodeURIComponent('/eligibility');
+  });
 }
 
 function escapeHtml(s) { return String(s).replace(/[&<>\"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"})[c]); }

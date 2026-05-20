@@ -401,11 +401,34 @@
     }
   </style>
 </head>
-<body>
+<body style="visibility:hidden;">
+  <script>
+    (async () => {
+      const endpoints = [
+        new URL('../php/api_me.php', window.location.href).toString(),
+        new URL('api_me_wrapper.php', window.location.href).toString()
+      ];
+
+      for (const endpoint of endpoints) {
+        try {
+          const response = await fetch(endpoint, { credentials: 'include' });
+          const data = await response.json();
+          if (data && data.authenticated) {
+            document.body.style.visibility = 'visible';
+            return;
+          }
+        } catch (error) {
+          // Try the next auth source.
+        }
+      }
+
+      window.location.replace('welcome.html');
+    })();
+  </script>
   <!-- Dashboard Header -->
   <header class="dashboard-header">
     <div class="dashboard-header-content">
-      <a href="/" class="dashboard-logo" style="display: flex; align-items: center; gap: 0.5rem; text-decoration: none;">
+      <a href="/" class="logo" style="display: flex; align-items: center; gap: 0.5rem; text-decoration: none;">
         <svg width="40" height="40" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
           <!-- Graduation cap mortarboard -->
           <polygon points="4,12 16,6 28,12 16,18" fill="#000000" stroke="#000000" stroke-width="1"/>
@@ -419,7 +442,7 @@
           <!-- Tassel bulb -->
           <circle cx="16" cy="27" r="2" fill="#000000"/>
         </svg>
-        <strong style="background: linear-gradient(135deg, #FF8A5B 0%, #00B4A6 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-size: 1.1rem;">ScholarMatch</strong>
+        <h1 class="logo-text" style="background: linear-gradient(135deg, #FF8A5B 0%, #00B4A6 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-size: 1.1rem; margin: 0;">ScholarMatch</h1>
       </a>
       <nav class="dashboard-nav" style="margin-left:auto;">
         <a href="/">Home</a>
@@ -485,6 +508,20 @@
               />
               <div id="autocompleteList" class="autocomplete-list"></div>
             </div>
+          </div>
+          <div class="scholarship-input-group">
+            <label for="previousMarks">Previous Year Marks <span style="color: #e74c3c; font-weight: 600;">*</span></label>
+            <input
+              type="number"
+              id="previousMarks"
+              placeholder="e.g., 85.5"
+              min="0"
+              max="100"
+              step="0.1"
+              required
+              style="width: 100%; padding: 0.875rem 1rem; border: 2px solid var(--border-color); border-radius: 8px; font-size: 1rem; font-family: 'Poppins', sans-serif; transition: all 0.3s ease; background: white;"
+            />
+            <small style="color: var(--text-light); font-size: 0.85rem; margin-top: 0.25rem; display: block;">Enter your marks out of 100 (Required for accurate eligibility assessment)</small>
           </div>
           <button type="submit" class="check-btn" id="checkBtn" data-state="check">Check Eligibility</button>
         </form>
@@ -652,6 +689,22 @@
         return;
       }
 
+      // Get marks - REQUIRED
+      const marksInput = document.getElementById('previousMarks');
+      const marks = marksInput.value.trim();
+      
+      if (!marks) {
+        showError('Please enter your previous year marks');
+        return;
+      }
+      
+      // Validate marks
+      const marksNum = parseFloat(marks);
+      if (isNaN(marksNum) || marksNum < 0 || marksNum > 100) {
+        showError('Please enter valid marks between 0 and 100');
+        return;
+      }
+
       // Show loading state
       const checkBtn = document.getElementById('checkBtn');
       if (checkBtn) {
@@ -666,12 +719,17 @@
       document.getElementById('checkBtn').disabled = true;
 
       try {
+        const payload = { 
+          scholarship_name: scholarshipName,
+          marks: marksNum
+        };
+        
         const response = await fetch(`${API_BASE}/check-scholarship-eligibility`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify({ scholarship_name: scholarshipName })
+          body: JSON.stringify(payload)
         });
 
         const result = await response.json();

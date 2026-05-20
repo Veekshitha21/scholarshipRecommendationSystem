@@ -50,6 +50,7 @@
   <script>
     const loginForm = document.getElementById('loginForm');
     const loginError = document.getElementById('loginError');
+    const redirectTarget = new URLSearchParams(window.location.search).get('redirect') || 'welcome.html';
     loginForm.addEventListener('submit', (e) => {
       e.preventDefault();
       loginError.style.display = 'none';
@@ -64,7 +65,7 @@
         credentials: 'same-origin'
       }).then(r => r.json()).then(j => {
         if (j && j.success) {
-          window.location.href = 'welcome.html';
+          window.location.href = redirectTarget;
         } else {
           loginError.textContent = j.error || 'Login failed';
           loginError.style.display = 'block';

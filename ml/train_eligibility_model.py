@@ -39,6 +39,26 @@ def normalize_education(value):
     return v
 
 
+def scholarship_requires_disability_support(value):
+    text = str(value or "").strip().lower()
+    text = " ".join(text.split())
+    if not text or text in {"no", "any"}:
+        return False
+    required_tokens = {
+        "yes",
+        "required",
+        "only",
+        "only for pwd",
+        "pwd",
+        "disabled",
+        "persons with disability",
+        "person with disability",
+        "person with disabilities",
+        "for pwd",
+    }
+    return text in required_tokens or any(token in text for token in ("pwd", "disabled", "disability", "required", "only"))
+
+
 def load_and_prepare_data():
     """Load scholarship CSV and prepare eligibility features."""
     if not CSV_PATH.exists():
@@ -102,8 +122,8 @@ def rule_based_eligible(user, scholarship):
             return False
     
     # Disability match
-    if scholarship['disability'] not in ['no', 'any']:
-        if scholarship['disability'] != user['disability']:
+    if scholarship_requires_disability_support(scholarship['disability']):
+        if user['disability'] != 'yes':
             return False
     
     return True
@@ -140,7 +160,7 @@ def build_training_examples(df, samples_per_sch=6):
             income_margin = max(max_income - user['income'], 0) if max_income > 0 else 0
             cat_match = 1 if scholarship['category'] in ['any', 'open'] or scholarship['category'] == user['category'] else 0
             gen_match = 1 if scholarship['gender'] in ['any', 'both'] or scholarship['gender'] == user['gender'] else 0
-            dis_match = 1 if scholarship['disability'] in ['no', 'any'] or scholarship['disability'] == user['disability'] else 0
+            dis_match = 1 if not scholarship_requires_disability_support(scholarship['disability']) or user['disability'] == 'yes' else 0
             
             features = [marks_diff, income_margin, cat_match, gen_match, dis_match]
             label = 1 if rule_based_eligible(user, scholarship) else 0
