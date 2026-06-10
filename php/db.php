@@ -5,7 +5,7 @@ $DB_HOST = '127.0.0.1';
 $DB_PORT = 3306;
 $DB_NAME = 'scholarMatch';
 $DB_USER = 'root';
-$DB_PASS = '';
+$DB_PASS = '1234';
 
 function get_db() {
     global $DB_HOST, $DB_PORT, $DB_NAME, $DB_USER, $DB_PASS;

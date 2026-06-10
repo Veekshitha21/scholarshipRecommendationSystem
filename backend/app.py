@@ -471,12 +471,12 @@ def predict_eligibility():
         # Prepare features for the model
         # The model expects the same features it was trained on
         feature_vector = pd.DataFrame({
+            'marks': [marks],
             'min_marks': [min_marks],
             'max_income': [max_income],
             'category_encoded': [hash(category) % 256],
             'gender_encoded': [hash(gender) % 256],
-            'disability_encoded': [hash(disability) % 256],
-            'course_encoded': [hash(course) % 256]
+            'disability_encoded': [hash(disability) % 256]
         })
         
         # Scale features
@@ -674,18 +674,19 @@ def check_scholarship_eligibility():
                 }), 200
             
             # Prepare features for the model that match training data
-            # The training model uses: marks_diff, income_margin, cat_match, gen_match, dis_match
-            marks_diff = student_marks - min_marks
-            income_margin = max(max_income - student_income, 0) if max_income > 0 else 0
-            cat_match = 1 if req_category in ['any', 'open', 'general'] or req_category == student_category else 0
-            gen_match = 1 if req_gender in ['any', 'both', 'all'] or req_gender == student_gender else 0
-            dis_match = 1 if not scholarship_requires_disability_support(req_disability) or student_disability == 'yes' else 0
-            
-            feature_vector = np.array([[marks_diff, income_margin, cat_match, gen_match, dis_match]])
-            
+            # The training model uses: marks, min_marks, max_income, category_encoded, gender_encoded, disability_encoded
+            feature_vector = pd.DataFrame({
+                'marks': [student_marks],
+                'min_marks': [min_marks],
+                'max_income': [max_income],
+                'category_encoded': [hash(student_category) % 256],
+                'gender_encoded': [hash(student_gender) % 256],
+                'disability_encoded': [hash(student_disability) % 256]
+            })
+
             # Scale features
             features_scaled = ELIGIBILITY_MODELS['scaler'].transform(feature_vector)
-            
+
             # Predict eligibility
             eligibility_pred = ELIGIBILITY_MODELS['classifier'].predict(features_scaled)[0]
             eligibility_proba = ELIGIBILITY_MODELS['classifier'].predict_proba(features_scaled)[0]
